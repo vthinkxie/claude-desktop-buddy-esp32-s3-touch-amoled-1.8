@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Desktop Buddy — Field Manual</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=DM+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper:   #f3eddf;
+    --paper-2: #ebe3d0;
+    --ink:     #221f1a;
+    --ink-dim: #6b6458;
+    --m5:      #ff6b35;   /* M5Stack orange */
+    --screen:  #0e0e0e;
+    --ok:      #2e9e5b;
+    --no:      #d13b3b;
+    --led:     #ff2f2f;
+    --hi:      #ffe9a8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #c9c0ac; }
+  body {
+    font-family: "DM Mono", ui-monospace, monospace;
+    color: var(--ink);
+    padding: 28px 16px;
+    display: grid;
+    place-items: start center;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ───────── the card ───────── */
+  .sheet {
+    width: min(1080px, 100%);
+    background: var(--paper);
+    border: 2px solid var(--ink);
+    border-radius: 14px;
+    box-shadow: 0 1px 0 #fff8 inset, 0 18px 50px -20px #0006, 0 4px 12px -6px #0005;
+    position: relative;
+    overflow: hidden;
+    animation: rise .6s cubic-bezier(.2,.7,.2,1) both;
+  }
+  @keyframes rise { from { opacity:0; transform: translateY(12px) } }
+  /* paper grain + halftone corner */
+  .sheet::before {
+    content:""; position:absolute; inset:0; pointer-events:none; opacity:.5;
+    background-image:
+      radial-gradient(#0000 60%, #00000008 100%),
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='.06'/></svg>");
+  }
+  .sheet::after {
+    content:""; position:absolute; right:-40px; top:-40px; width:280px; height:280px;
+    background: radial-gradient(circle at 30% 30%, var(--m5) 18%, #0000 19%) 0 0/11px 11px;
+    opacity:.12; transform: rotate(12deg); pointer-events:none;
+  }
+
+  /* ───────── masthead ───────── */
+  header {
+    display:flex; align-items:flex-end; justify-content:space-between; gap:24px;
+    padding: 26px 32px 18px;
+    border-bottom: 2px dashed var(--ink-dim);
+    position: relative;
+  }
+  .mast h1 {
+    font-family: "Silkscreen", monospace;
+    font-size: clamp(30px, 4.4vw, 52px);
+    line-height: .92; letter-spacing: 1px;
+    text-shadow: 3px 3px 0 var(--m5);
+  }
+  .mast .sub {
+    font-size: 12px; letter-spacing: 3px; text-transform: uppercase;
+    color: var(--ink-dim); margin-top: 6px;
+  }
+  .stamp {
+    font-family: "Silkscreen", monospace; font-size: 11px; text-align:right;
+    border: 2px solid var(--ink); padding: 8px 12px 6px; border-radius: 6px;
+    background: var(--hi); transform: rotate(2deg);
+    box-shadow: 2px 2px 0 var(--ink);
+  }
+  .stamp b { color: var(--m5); font-size: 14px; }
+
+  /* ───────── layout ───────── */
+  main {
+    display: grid;
+    grid-template-columns: 420px 1fr;
+    gap: 0;
+  }
+  .col { padding: 26px 32px 8px; position: relative; }
+  .col + .col { border-left: 2px dashed var(--ink-dim); }
+
+  h2 {
+    font-family: "Silkscreen", monospace;
+    font-size: 15px; letter-spacing: 1px;
+    margin-bottom: 14px;
+    display:flex; align-items:center; gap:10px;
+  }
+  h2::before {
+    content:""; width:10px; height:10px; background:var(--m5);
+    box-shadow: 2px 2px 0 var(--ink);
+  }
+
+  /* ───────── device diagram ───────── */
+  .rig { position: relative; height: 400px; }
+  .stick {
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    width: 120px; height: 240px;
+    background: linear-gradient(160deg,#ff8a52 0%,var(--m5) 55%,#e8531f 100%);
+    border: 3px solid var(--ink); border-radius: 16px;
+    box-shadow: 0 10px 24px -10px #c0440088, inset 0 2px 0 #ffffff40, inset 0 -4px 0 #00000020;
+    animation: bob 5s ease-in-out infinite;
+  }
+  @keyframes bob { 50% { transform:translate(-50%,-51.5%) rotate(.6deg) } }
+  .lcd {
+    position:absolute; left:12px; right:12px; top:24px; height:150px;
+    background: var(--screen); border-radius: 6px;
+    border: 2px solid #000;
+    box-shadow: inset 0 0 12px #000;
+    display:grid; place-items:center;
+    overflow:hidden;
+  }
+  .face { font-family:"Silkscreen",monospace; color:#cfe8cf; font-size:18px; text-align:center; line-height:1.4; }
+  .face .zz { color:#5e7a5e; font-size:10px; display:block; animation: zz 2.4s ease-in-out infinite; }
+  @keyframes zz { 50% { transform: translate(2px,-3px); opacity:.5 } }
+  .btn-a {
+    position:absolute; left:50%; bottom:18px; transform:translateX(-50%);
+    width:56px; height:36px; border-radius:8px;
+    background: linear-gradient(#ff9a63,var(--m5) 55%,#e0511e);
+    border:2px solid var(--ink);
+    box-shadow: inset 0 2px 0 #ffffff55, inset 0 -4px 0 #00000035, 0 2px 0 var(--ink);
+  }
+  .btn-b {
+    position:absolute; right:-7px; top:62px;
+    width:9px; height:36px; border-radius:3px;
+    background:#e8531f; border:2px solid var(--ink);
+  }
+  .btn-p {
+    position:absolute; left:-7px; bottom:24px;
+    width:9px; height:26px; border-radius:3px;
+    background:#e8531f; border:2px solid var(--ink);
+  }
+  .led {
+    position:absolute; left:14px; top:8px;
+    width:8px; height:8px; border-radius:50%;
+    background:var(--led); box-shadow:0 0 9px 1px var(--led);
+    animation: blink 1.2s steps(2) infinite;
+  }
+  @keyframes blink { 50% { opacity:.15; box-shadow:none } }
+  .usb {
+    position:absolute; left:50%; bottom:-7px; transform:translateX(-50%);
+    width:34px; height:9px; background:#333; border:2px solid var(--ink); border-radius:0 0 4px 4px;
+  }
+
+  /* callout lines */
+  .pin {
+    position:absolute; font-family:"Silkscreen",monospace; font-size:11px;
+    display:flex; align-items:center; gap:8px; white-space:nowrap;
+  }
+  .pin .tag {
+    background:var(--ink); color:var(--paper); padding:2px 8px 4px; border-radius:4px;
+  }
+  .pin .tag.ok { background:var(--m5); color:var(--ink); }
+  .pin .tag.no { background:var(--no); }
+  .pin .tag.dim { background:var(--ink-dim); }
+  .pin .wire { height:2px; background:var(--ink); flex:none; }
+  .pin .dot { width:7px; height:7px; border-radius:50%; background:var(--ink); flex:none; }
+  .pin small { font-family:"DM Mono",monospace; color:var(--ink-dim); font-size:10px; display:block; margin-top:4px; }
+  .pin.r { flex-direction:row-reverse; text-align:right; }
+
+  .p-a   { left:204px; top:278px; } .p-a .wire{width:54px}
+  .p-b   { left:244px; top:154px; } .p-b .wire{width:30px}
+  .p-pwr { right:246px; top:278px; } .p-pwr .wire{width:30px}
+  .p-led { right:228px; top:86px;  } .p-led .wire{width:28px}
+  .p-usb { left:194px; top:320px; } .p-usb .wire{width:62px}
+
+  .gestures {
+    display:grid; grid-template-columns:1fr 1fr; gap:8px;
+  }
+  .gest {
+    border:1.5px solid var(--ink); border-radius:8px; padding:9px 11px 8px;
+    background:var(--paper-2); font-size:12px; line-height:1.35;
+    box-shadow: 2px 2px 0 var(--ink);
+  }
+  .gest b { font-family:"Silkscreen",monospace; font-size:11px; display:block; }
+
+  /* ───────── controls table ───────── */
+  .controls { width:100%; border-collapse:collapse; font-size:12.5px; margin-bottom:20px; }
+  .controls th, .controls td { text-align:left; padding:8px 10px; border-bottom:1.5px solid #00000018; }
+  .controls th {
+    font-family:"Silkscreen",monospace; font-weight:400; font-size:10px;
+    background:var(--ink); color:var(--paper); border-bottom:none;
+  }
+  .controls th:first-child { border-radius:6px 0 0 0; }
+  .controls th:last-child  { border-radius:0 6px 0 0; }
+  .controls td:first-child { font-family:"Silkscreen",monospace; font-size:11px; white-space:nowrap; }
+  .controls tr:hover td { background:#00000007; }
+  .key {
+    display:inline-block; min-width:18px; text-align:center;
+    padding:0 7px 2px; border:1.5px solid var(--ink); border-radius:5px;
+    background:var(--paper-2); box-shadow:1.5px 1.5px 0 var(--ink);
+    font-family:"Silkscreen",monospace; font-size:11px;
+  }
+  .key.a { background:var(--m5); color:var(--ink); }
+  .ok { color:var(--ok); font-weight:500; }
+  .no { color:var(--no); font-weight:500; }
+  .dim { color:var(--ink-dim); }
+
+  .note {
+    font-size:11.5px; font-style:italic; color:var(--ink-dim);
+    padding:8px 12px; border-left:3px solid var(--m5); background:#ff6b3512;
+    margin-bottom:18px; border-radius:0 6px 6px 0;
+  }
+
+  /* moods strip */
+  .moods { display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-bottom:18px; }
+  .mood {
+    border:1.5px solid var(--ink); border-radius:7px; padding:8px 2px 7px;
+    text-align:center; background:var(--paper-2);
+    font-size:9.5px; line-height:1.25; min-width:0;
+    box-shadow:1.5px 1.5px 0 var(--ink);
+    transition: transform .12s;
+  }
+  .mood:hover { transform:translateY(-2px); }
+  .mood .ico { font-family:"Silkscreen",monospace; font-size:13px; display:block; margin-bottom:3px; white-space:nowrap; overflow:hidden; }
+  .mood b { font-family:"Silkscreen",monospace; font-size:9px; display:block; letter-spacing:.5px; }
+  .mood span { color:var(--ink-dim); }
+
+  /* pairing */
+  .pair { display:flex; gap:8px; align-items:stretch; }
+  .step {
+    flex:1; border:1.5px solid var(--ink); border-radius:8px;
+    padding:10px 11px 9px; font-size:11.5px; line-height:1.35;
+    background:var(--paper); position:relative;
+    box-shadow:2px 2px 0 var(--ink);
+  }
+  .step::before {
+    content: attr(data-n);
+    position:absolute; top:-9px; left:-9px;
+    width:22px; height:22px; border-radius:50%;
+    background:var(--m5); border:2px solid var(--ink);
+    font-family:"Silkscreen",monospace; font-size:12px;
+    display:grid; place-items:center; padding-bottom:2px;
+  }
+  .step b { font-family:"Silkscreen",monospace; font-size:10px; display:block; margin-bottom:3px; }
+  .arrow { align-self:center; font-family:"Silkscreen",monospace; color:var(--ink-dim); }
+
+  footer {
+    border-top:2px dashed var(--ink-dim);
+    padding:16px 32px 18px; margin-top:6px;
+    display:grid; grid-template-columns:420px 1fr; gap:28px; align-items:center;
+    font-size:11px; line-height:1.5;
+  }
+  footer b { font-family:"Silkscreen",monospace; font-size:11px; letter-spacing:.5px; }
+  footer .reset { color:var(--ink-dim); }
+  footer .hack {
+    background:var(--hi); border:1.5px solid var(--ink); border-radius:8px;
+    padding:9px 14px; box-shadow:2px 2px 0 var(--ink);
+  }
+  footer code { font-family:"DM Mono",monospace; font-weight:500; }
+
+  /* ───────── responsive / print ───────── */
+  @media (max-width: 920px) {
+    main, footer { grid-template-columns: 1fr; }
+    .col + .col { border-left:none; border-top:2px dashed var(--ink-dim); }
+    .moods { grid-template-columns:repeat(4,1fr); }
+    .stamp { display:none; }
+  }
+  @media print {
+    html,body { background:#fff; padding:0; }
+    .sheet { box-shadow:none; border-radius:0; width:100%; animation:none; }
+    .stick { animation:none; }
+    @page { margin:10mm; }
+  }
+</style>
+</head>
+<body>
+<article class="sheet">
+
+  <header>
+    <div class="mast">
+      <h1>DESKTOP BUDDY<br>FIELD MANUAL</h1>
+      <div class="sub">Operating the little stick · keep near desk</div>
+    </div>
+    <div class="stamp">
+      100%<br><b>HACKABLE</b><br>SEE&nbsp;FOOTER&nbsp;↓
+    </div>
+  </header>
+
+  <main>
+    <!-- ─────── LEFT: anatomy ─────── -->
+    <section class="col">
+      <h2>Anatomy</h2>
+
+      <div class="rig">
+        <div class="stick">
+          <div class="lcd">
+            <div class="face">
+              <span class="zz">z Z</span>
+              (&nbsp;-&nbsp;.&nbsp;-&nbsp;)
+            </div>
+          </div>
+          <div class="btn-a"></div>
+          <div class="btn-b"></div>
+          <div class="btn-p"></div>
+          <div class="led"></div>
+          <div class="usb"></div>
+        </div>
+
+        <div class="pin p-a"><span class="dot"></span><span class="wire"></span>
+          <div><span class="tag ok">A</span><small>front · big one</small></div>
+        </div>
+        <div class="pin p-b"><span class="dot"></span><span class="wire"></span>
+          <div><span class="tag no">B</span><small>right side</small></div>
+        </div>
+        <div class="pin r p-pwr"><span class="dot"></span><span class="wire"></span>
+          <div><span class="tag dim">PWR</span><small>left side</small></div>
+        </div>
+        <div class="pin r p-led"><span class="dot"></span><span class="wire"></span>
+          <div><span class="tag">LED</span><small>for alerts</small></div>
+        </div>
+        <div class="pin p-usb"><span class="dot"></span><span class="wire"></span>
+          <div><span class="tag dim">USB-C</span><small>charge · clock</small></div>
+        </div>
+      </div>
+
+      <h2>Gestures</h2>
+      <div class="gestures">
+        <div class="gest"><b>SHAKE IT</b>Buddy gets dizzy. Purely for your amusement.</div>
+        <div class="gest"><b>FACE-DOWN</b>Naps &amp; refills energy. Flip back up to wake.</div>
+        <div class="gest"><b>ON ITS SIDE</b>While charging on USB, becomes a desk clock.</div>
+        <div class="gest"><b>LEAVE IT</b>Screen sleeps after 30s idle. Any button wakes it.</div>
+      </div>
+    </section>
+
+    <!-- ─────── RIGHT: operation ─────── -->
+    <section class="col">
+      <h2>Controls</h2>
+      <table class="controls">
+        <tr><th>INPUT</th><th>NORMALLY</th><th>ON A PROMPT</th></tr>
+        <tr>
+          <td><span class="key a">A</span> tap</td>
+          <td>next screen <span class="dim">home → pet → info</span></td>
+          <td><span class="ok">✔ APPROVE</span></td>
+        </tr>
+        <tr>
+          <td><span class="key">B</span> tap</td>
+          <td>next page / scroll transcript</td>
+          <td><span class="no">✘ DENY</span></td>
+        </tr>
+        <tr>
+          <td><span class="key a">A</span> hold</td>
+          <td colspan="2">open menu <span class="dim">· settings · power off · help · demo</span></td>
+        </tr>
+        <tr>
+          <td><span class="key">PWR</span> tap</td>
+          <td colspan="2">screen on / off</td>
+        </tr>
+        <tr>
+          <td><span class="key">PWR</span> hold&nbsp;6s</td>
+          <td colspan="2">hard power off <span class="dim">· tap PWR again to boot</span></td>
+        </tr>
+        <tr>
+          <td class="dim">in a menu</td>
+          <td colspan="2"><span class="key a">A</span> moves down&nbsp;&nbsp;·&nbsp;&nbsp;<span class="key">B</span> selects</td>
+        </tr>
+      </table>
+
+      <p class="note">
+        Approve within <b>5&nbsp;seconds</b> and your buddy throws hearts at you.
+        Every <b>50K&nbsp;tokens</b> it levels up with confetti.
+      </p>
+
+      <h2>The Seven Moods</h2>
+      <div class="moods">
+        <div class="mood"><span class="ico">(-.-)</span><b>SLEEP</b><span>no link</span></div>
+        <div class="mood"><span class="ico">(·_·)</span><b>IDLE</b><span>connected</span></div>
+        <div class="mood"><span class="ico">(･﹏･)</span><b>BUSY</b><span>working</span></div>
+        <div class="mood"><span class="ico" style="color:var(--no)">(!o!)</span><b>ATTN</b><span>approve!</span></div>
+        <div class="mood"><span class="ico">\(^o^)</span><b>PARTY</b><span>level up</span></div>
+        <div class="mood"><span class="ico">(@_@)</span><b>DIZZY</b><span>shaken</span></div>
+        <div class="mood"><span class="ico" style="color:var(--no)">(♥‿♥)</span><b>HEART</b><span>fast ok</span></div>
+      </div>
+
+      <h2>Pairing</h2>
+      <div class="pair">
+        <div class="step" data-n="1"><b>DESKTOP</b>Help → Troubleshooting → Enable Developer Mode</div>
+        <span class="arrow">›</span>
+        <div class="step" data-n="2"><b>OPEN</b>Developer → Hardware Buddy → <i>Connect</i></div>
+        <span class="arrow">›</span>
+        <div class="step" data-n="3"><b>PAIR</b>Pick <code>Claude-XXXX</code>, type the 6-digit code shown on the stick</div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="reset">
+      <b>FACTORY RESET</b><br>
+      hold A › settings › reset › factory reset › tap twice
+    </div>
+    <div class="hack">
+      <b style="color:var(--m5)">MAKE IT YOURS ✎</b>&nbsp;
+      The firmware is open source — clone
+      <code>github.com/anthropics/claude-desktop-buddy</code>, point Claude&nbsp;Code at it,
+      and reshape the stick however you like. New pets, new screens, new rules.
+    </div>
+  </footer>
+
+</article>
+</body>
+</html>
