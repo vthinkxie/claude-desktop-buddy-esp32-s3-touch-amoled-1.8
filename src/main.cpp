@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <Wire.h>
+#include "hw/pins.h"
 #include "hw/expander.h"
 #include "hw/display.h"
 #include "hw/border.h"

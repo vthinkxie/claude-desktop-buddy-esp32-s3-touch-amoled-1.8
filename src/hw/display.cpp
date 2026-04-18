@@ -13,10 +13,12 @@ bool hwDisplayInit() {
     PIN_LCD_CS, PIN_LCD_SCLK, PIN_LCD_SDIO0, PIN_LCD_SDIO1,
     PIN_LCD_SDIO2, PIN_LCD_SDIO3);
   s_gfx = new Arduino_SH8601(s_bus, GFX_NOT_DEFINED, 0, LCD_W_PHYS, LCD_H_PHYS);
-  if (!s_gfx->begin()) { Serial.println("hwDisplay: gfx begin failed"); return false; }
-  s_gfx->setBrightness(0);   // black to avoid white flash
   s_canvas = new Arduino_Canvas(HW_W, HW_H, s_gfx);
+  // canvas->begin() internally calls gfx->begin() which calls bus init.
+  // Calling them separately would double-init the SPI bus → ESP_ERR_INVALID_STATE.
   if (!s_canvas->begin()) { Serial.println("hwDisplay: canvas begin failed"); return false; }
+  s_gfx->setBrightness(0);   // black first frame to avoid white flash
+  delay(20);
   s_gfx->setBrightness(150);  // default mid-brightness; main may override later
   return true;
 }
