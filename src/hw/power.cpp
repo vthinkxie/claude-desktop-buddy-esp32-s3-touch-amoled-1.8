@@ -17,7 +17,10 @@ bool hwPowerInit() {
   s_pmu.enableBattVoltageMeasure();
   s_pmu.enableTemperatureMeasure();
   s_pmu.disableIRQ(XPOWERS_AXP2101_ALL_IRQ);
-  s_pmu.enableIRQ(XPOWERS_PWR_BTN_CLICK_INT | XPOWERS_PWR_BTN_LONGPRESSED_INT);
+  // AXP2101::enableIRQ() takes chip-specific bit positions, not the
+  // cross-chip XPOWERS_PWR_BTN_* enums (which would write the wrong
+  // INTEN register).
+  s_pmu.enableIRQ(XPOWERS_AXP2101_PKEY_SHORT_IRQ | XPOWERS_AXP2101_PKEY_LONG_IRQ);
   s_pmu.clearIrqStatus();
   return true;
 }
