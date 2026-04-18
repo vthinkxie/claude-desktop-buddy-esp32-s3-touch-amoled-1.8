@@ -1,10 +1,9 @@
 #include "character.h"
-#include <M5StickCPlus.h>
+#include "hw/display.h"
+#include <Arduino_GFX_Library.h>
 #include <LittleFS.h>
 #include <AnimatedGIF.h>
 #include <ArduinoJson.h>
-
-extern TFT_eSprite spr;
 
 static const char* STATE_NAMES[] = {
   "sleep", "idle", "busy", "attention", "celebrate", "dizzy", "heart"
@@ -42,15 +41,18 @@ static int         gifX = 0, gifY = 0, gifW = 0, gifH = 0;
 // in the upper 140px. No padding assumed in the source art.
 static const int   PEEK_TOP = 70;
 static bool        peekMode = false;
-// Draw target — defaults to the sprite; characterRenderTo() retargets to
-// M5.Lcd for the landscape clock (both inherit TFT_eSPI).
-static TFT_eSPI*   _tgt = &spr;
+// Draw target — defaults to the canvas; characterRenderTo() can retarget
+// to any Arduino_GFX surface (Canvas inherits from Arduino_GFX).
+static Arduino_GFX* _explicitTgt = nullptr;
+static inline Arduino_GFX* tgt() {
+  return _explicitTgt ? _explicitTgt : (Arduino_GFX*)hwCanvas();
+}
 // Peek mode renders at half scale (2:1 nearest-neighbor in gifDrawCb) so
 // the whole pet fits the 70px window instead of cropping the top.
 static void gifPlace() {
   int outW = peekMode ? gifW / 2 : gifW;
   int outH = peekMode ? gifH / 2 : gifH;
-  gifX = (spr.width() - outW) / 2;
+  gifX = (tgt()->width() - outW) / 2;
   gifY = peekMode ? (PEEK_TOP - outH) / 2 : (140 - outH) / 2;
 }
 static uint32_t    nextFrameAt = 0;
@@ -111,7 +113,7 @@ static void gifDrawCb(GIFDRAW* d) {
   // disposal semantics are encoder-dependent and don't compose with the
   // 2:1 peek downscale's sample alignment.
   auto put = [&](int x, int y, uint8_t idx) {
-    _tgt->drawPixel(x, y, (hasT && idx == t) ? pal.bg : pal16[idx]);
+    tgt()->drawPixel(x, y, (hasT && idx == t) ? pal.bg : pal16[idx]);
   };
 
   if (peekMode) {
@@ -125,12 +127,12 @@ static void gifDrawCb(GIFDRAW* d) {
   }
 
   int y = gifY + srcY;
-  if (y < 0 || y >= spr.height()) return;
+  if (y < 0 || y >= tgt()->height()) return;
   int x0 = gifX + d->iX;
   int w  = d->iWidth;
   if (w > 256) w = 256;
   if (x0 < 0) { src -= x0; w += x0; x0 = 0; }
-  if (x0 + w > spr.width()) w = spr.width() - x0;
+  if (x0 + w > tgt()->width()) w = tgt()->width() - x0;
   if (w <= 0) return;
   for (int i = 0; i < w; i++) put(x0 + i, y, src[i]);
 }
@@ -247,13 +249,14 @@ bool characterInit(const char* name) {
 bool characterLoaded() { return loaded; }
 const Palette& characterPalette() { return pal; }
 
-// One-shot half-scale render to an arbitrary surface (M5.Lcd for the
-// landscape clock). Caller owns clearing. Advances frame timing so
-// animation runs even when characterTick() is bypassed.
-void characterRenderTo(TFT_eSPI* tgt, int cx, int cy) {
-  if (!gifOpen) return;   // caller opens via characterSetState(activeState)
-  TFT_eSPI* prevT = _tgt; bool prevP = peekMode; int px = gifX, py = gifY;
-  _tgt = tgt; peekMode = true;
+// One-shot half-scale render to an arbitrary surface (was M5.Lcd for
+// the landscape clock; on AMOLED we keep the API for completeness).
+// Caller owns clearing. Advances frame timing so animation runs even
+// when characterTick() is bypassed.
+void characterRenderTo(Arduino_GFX* override, int cx, int cy) {
+  if (!gifOpen) return;
+  Arduino_GFX* prevT = _explicitTgt; bool prevP = peekMode; int px = gifX, py = gifY;
+  _explicitTgt = override; peekMode = true;
   gifX = cx - gifW / 4;
   gifY = cy - gifH / 4;
   uint32_t now = millis();
@@ -262,7 +265,7 @@ void characterRenderTo(TFT_eSPI* tgt, int cx, int cy) {
     if (!gif.playFrame(false, &delayMs)) { gif.reset(); gif.playFrame(false, &delayMs); }
     nextFrameAt = now + (delayMs > 0 ? delayMs : 100);
   }
-  _tgt = prevT; peekMode = prevP; gifX = px; gifY = py;
+  _explicitTgt = prevT; peekMode = prevP; gifX = px; gifY = py;
 }
 
 void characterSetPeek(bool peek) {
@@ -281,7 +284,7 @@ void characterClose() {
 void characterInvalidate() {
   if (!loaded) return;
   if (textMode) {
-    spr.fillSprite(pal.bg);
+    tgt()->fillScreen(pal.bg);
     uint8_t s = curState; curState = 0xFF;
     characterSetState(s);
     return;
@@ -299,7 +302,7 @@ void characterSetState(uint8_t s) {
     curState = s;
     textFrame = 0;
     textNext = 0;
-    spr.fillSprite(pal.bg);
+    tgt()->fillScreen(pal.bg);
     return;
   }
 
@@ -320,7 +323,7 @@ void characterSetState(uint8_t s) {
     gifW = gif.getCanvasWidth();
     gifH = gif.getCanvasHeight();
     gifPlace();
-    spr.fillSprite(pal.bg);   // bias upward, leave room for HUD
+    tgt()->fillScreen(pal.bg);   // bias upward, leave room for HUD
     nextFrameAt = 0;
     variantStartedMs = millis();
     Serial.printf("[char] %s: %dx%d @ (%d,%d) heap=%u\n",
@@ -343,15 +346,15 @@ void characterTick() {
     // Clear a band around the text, not the whole sprite — keeps overlays
     // like the approval panel and the HUD untouched.
     int cy = peekMode ? 35 : 60;
-    spr.fillRect(0, cy - 14, spr.width(), 28, pal.bg);
+    tgt()->fillRect(0, cy - 14, tgt()->width(), 28, pal.bg);
 
     const char* line = ts.frames[textFrame];
     int len = strlen(line);
     int tw = len * 12;                                    // size-2 glyph width
-    spr.setTextColor(pal.body, pal.bg);
-    spr.setTextSize(2);
-    spr.setCursor((spr.width() - tw) / 2, cy - 8);
-    spr.print(line);
+    tgt()->setTextColor(pal.body, pal.bg);
+    tgt()->setTextSize(2);
+    tgt()->setCursor((tgt()->width() - tw) / 2, cy - 8);
+    tgt()->print(line);
 
     textFrame = (textFrame + 1) % ts.nFrames;
     return;
