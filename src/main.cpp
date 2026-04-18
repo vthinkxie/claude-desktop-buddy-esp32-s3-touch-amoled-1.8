@@ -124,6 +124,13 @@ static void beep(uint16_t freq, uint16_t dur) {
   if (settings().sound) hwBeep(freq, dur);
 }
 
+// Touch hit-test helper (additive: keys still work, touch is a 2nd path).
+// Returns true on a fresh tap-down inside the rect; releases don't fire.
+static bool tap(int x, int y, int w, int h) {
+  const HwTouch& t = hwTouch();
+  return t.justPressed && t.x >= x && t.y >= y && t.x < x+w && t.y < y+h;
+}
+
 static void sendCmd(const char* json) {
   Serial.println(json);
   size_t n = strlen(json);
@@ -1041,6 +1048,65 @@ void loop() {
       beep(2400, 30);
       msgScroll = (msgScroll >= 30) ? 0 : msgScroll + 1;
     }
+  }
+
+  // ─── Touch (additive — buttons above already handled) ──────────────
+  // Approval: tap upper half of the approval area = approve,
+  //           tap lower half = deny.
+  if (inPrompt) {
+    const int APPROVAL_TOP = H - 78;
+    if (tap(0, APPROVAL_TOP,      W, 39)) {
+      char cmd[96];
+      snprintf(cmd, sizeof(cmd), "{\"cmd\":\"permission\",\"id\":\"%s\",\"decision\":\"once\"}", tama.promptId);
+      sendCmd(cmd);
+      responseSent = true;
+      uint32_t tookS = (millis() - promptArrivedMs) / 1000;
+      statsOnApproval(tookS);
+      beep(2400, 60);
+      if (tookS < 5) triggerOneShot(P_HEART, 2000);
+    }
+    if (tap(0, APPROVAL_TOP + 39, W, 39)) {
+      char cmd[96];
+      snprintf(cmd, sizeof(cmd), "{\"cmd\":\"permission\",\"id\":\"%s\",\"decision\":\"deny\"}", tama.promptId);
+      sendCmd(cmd);
+      responseSent = true;
+      statsOnDenial();
+      beep(600, 60);
+    }
+  } else if (menuOpen || settingsOpen || resetOpen) {
+    // Tap a menu row → directly select + confirm. Reuses the layout
+    // constants from drawMenu/drawSettings/drawReset.
+    int n      = menuOpen ? MENU_N : settingsOpen ? SETTINGS_N : RESET_N;
+    int hint   = MENU_HINT_H;
+    int mw     = 118;
+    int mh     = 16 + n * 14 + hint;
+    int mx     = (W - mw) / 2;
+    int my     = (H - mh) / 2;
+    int rowH   = 14;
+    int rowsTop = my + 8;
+    const HwTouch& t = hwTouch();
+    if (t.justPressed && t.x >= mx && t.x < mx + mw &&
+        t.y >= rowsTop && t.y < rowsTop + n * rowH) {
+      int hit = (t.y - rowsTop) / rowH;
+      if (hit >= 0 && hit < n) {
+        beep(2400, 30);
+        if (menuOpen)         { menuSel     = hit; menuConfirm(); }
+        else if (settingsOpen){ settingsSel = hit; applySetting(hit); }
+        else /* resetOpen */  { resetSel    = hit; applyReset(hit); }
+      }
+    }
+  } else if (displayMode == DISP_INFO && tap(W - 60, 0, 60, 70)) {
+    // Top-right corner → next info page (mirrors BtnB)
+    beep(2400, 30);
+    infoPage = (infoPage + 1) % INFO_PAGES;
+  } else if (displayMode == DISP_PET && tap(W - 60, 0, 60, 70)) {
+    beep(2400, 30);
+    petPage = (petPage + 1) % PET_PAGES;
+    applyDisplayMode();
+  } else if (displayMode == DISP_NORMAL && tap(0, H - 32, W, 32)) {
+    // Bottom strip → scroll transcript back (mirrors BtnB short-press)
+    beep(2400, 30);
+    msgScroll = (msgScroll >= 30) ? 0 : msgScroll + 1;
   }
 
   // blink bookkeeping
