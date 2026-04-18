@@ -141,10 +141,17 @@ static void gifDrawCb(GIFDRAW* d) {
 
 bool characterInit(const char* name) {
   if (!LittleFS.begin(false)) {
-    // begin() fails if already mounted — that's fine on reload
+    // begin() fails if already mounted — that's fine on reload.
+    // It also fails on a fresh device whose LittleFS partition has never
+    // been formatted (factory firmware leaves it as another filesystem).
+    // Retry with format=true so the first boot self-heals.
     if (!LittleFS.open("/")) {
-      Serial.println("[char] LittleFS mount failed");
-      return false;
+      Serial.println("[char] LittleFS mount failed; formatting...");
+      if (!LittleFS.begin(true)) {
+        Serial.println("[char] LittleFS format also failed");
+        return false;
+      }
+      Serial.println("[char] LittleFS formatted");
     }
   }
 
