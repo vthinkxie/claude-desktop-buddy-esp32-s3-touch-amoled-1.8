@@ -63,7 +63,7 @@ inline void statsSave() {
 // Level is token-driven now; approvals only feed mood/velocity.
 inline void statsOnApproval(uint32_t secondsToRespond) {
   _stats.approvals++;
-  _stats.velocity[_stats.velIdx] = (uint16_t)min(secondsToRespond, 65535u);
+  _stats.velocity[_stats.velIdx] = (uint16_t)((secondsToRespond > 65535u) ? 65535u : secondsToRespond);
   _stats.velIdx = (_stats.velIdx + 1) % 8;
   if (_stats.velCount < 8) _stats.velCount++;
   _dirty = true; statsSave();

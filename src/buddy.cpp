@@ -1,9 +1,8 @@
 #include "buddy.h"
 #include "buddy_common.h"
-#include <M5StickCPlus.h>
+#include "hw/display.h"
+#include <Arduino_GFX_Library.h>
 #include <string.h>
-
-extern TFT_eSprite spr;
 
 // Mirrors PersonaState in main.cpp
 enum { B_SLEEP, B_IDLE, B_BUSY, B_ATTENTION, B_CELEBRATE, B_DIZZY, B_HEART };
@@ -29,11 +28,15 @@ const uint16_t BUDDY_RED    = 0xF800;
 const uint16_t BUDDY_BLUE   = 0x041F;
 
 // ──────────────── shared rendering helpers ────────────────
-// Render target indirection: defaults to the sprite, but can retarget to
-// M5.Lcd for landscape clock mode (both inherit TFT_eSPI). Coords stay
-// fixed — species hardcode BUDDY_X_CENTER/BUDDY_Y_OVERLAY in their
+// Render target indirection: defaults to the canvas, but can retarget
+// to any Arduino_GFX surface (Canvas inherits from Arduino_GFX). Coords
+// stay fixed — species hardcode BUDDY_X_CENTER/BUDDY_Y_OVERLAY in their
 // particle calls, so retargeting position would only move the body.
-static TFT_eSPI* _tgt = &spr;
+// Lazy-initialised on first access so hwInit ordering doesn't matter.
+static Arduino_GFX* _explicitTgt = nullptr;
+static inline Arduino_GFX* tgt() {
+  return _explicitTgt ? _explicitTgt : hwCanvas();
+}
 // 2× on home screen, 1× in peek (PET/INFO) and landscape clock. Species
 // art is space-padded to a fixed width for alignment at 1×; at 2× we trim
 // and re-center per line so the padding doesn't push ink off-screen.
@@ -47,13 +50,13 @@ void buddyPrintLine(const char* line, int yPx, uint16_t color, int xOff) {
   }
   int w = len * BUDDY_CHAR_W * _scale;
   int x = BUDDY_X_CENTER - w / 2 + xOff * _scale;
-  _tgt->setTextColor(color, BUDDY_BG);
-  _tgt->setCursor(x, yPx);
-  for (int i = 0; i < len; i++) _tgt->print(line[i]);
+  tgt()->setTextColor(color, BUDDY_BG);
+  tgt()->setCursor(x, yPx);
+  for (int i = 0; i < len; i++) tgt()->print(line[i]);
 }
 
 void buddyPrintSprite(const char* const* lines, uint8_t nLines, int yOffset, uint16_t color, int xOff) {
-  _tgt->setTextSize(_scale);
+  tgt()->setTextSize(_scale);
   int yBase = BUDDY_Y_BASE * _scale - (_scale - 1) * 14;
   for (uint8_t i = 0; i < nLines; i++) {
     buddyPrintLine(lines[i], yBase + (yOffset + i * BUDDY_CHAR_H) * _scale, color, xOff);
@@ -63,10 +66,10 @@ void buddyPrintSprite(const char* const* lines, uint8_t nLines, int yOffset, uin
 // Species pass 1× coords (relative to BUDDY_X_CENTER / BUDDY_Y_OVERLAY);
 // transform here so all 18 species files stay scale-agnostic.
 void buddySetCursor(int x, int y) {
-  _tgt->setCursor(BUDDY_X_CENTER + (x - BUDDY_X_CENTER) * _scale, y * _scale);
+  tgt()->setCursor(BUDDY_X_CENTER + (x - BUDDY_X_CENTER) * _scale, y * _scale);
 }
-void buddySetColor(uint16_t fg)   { _tgt->setTextColor(fg, BUDDY_BG); }
-void buddyPrint(const char* s)    { _tgt->setTextSize(_scale); _tgt->print(s); }
+void buddySetColor(uint16_t fg)   { tgt()->setTextColor(fg, BUDDY_BG); }
+void buddyPrint(const char* s)    { tgt()->setTextSize(_scale); tgt()->print(s); }
 
 // ──────────────── species registry ────────────────
 extern const Species CAPYBARA_SPECIES;
@@ -153,21 +156,21 @@ void buddySetPeek(bool peek) {
   buddyInvalidate();
 }
 
-// One-shot render to an arbitrary TFT_eSPI surface (M5.Lcd for landscape
-// clock). Bypasses tick gating and the sprite fillRect — caller owns
-// clearing. Advances the frame counter so animation runs even when
-// buddyTick is bypassed.
-// Landscape clock callsite — always 1×.
-void buddyRenderTo(TFT_eSPI* tgt, uint8_t personaState) {
+// One-shot render to an arbitrary Arduino_GFX surface (was M5.Lcd for
+// landscape clock; on AMOLED we keep the API for completeness even
+// though landscape clock is removed). Bypasses tick gating and the
+// canvas fillRect — caller owns clearing. Advances the frame counter
+// so animation runs even when buddyTick is bypassed.
+void buddyRenderTo(Arduino_GFX* override, uint8_t personaState) {
   uint8_t prevS = _scale; _scale = 1;
   if (personaState >= 7) personaState = B_IDLE;
   uint32_t now = millis();
   if ((int32_t)(now - nextTickAt) >= 0) { nextTickAt = now + TICK_MS; tickCount++; }
-  TFT_eSPI* prev = _tgt;
-  _tgt = tgt;
+  Arduino_GFX* prev = _explicitTgt;
+  _explicitTgt = override;
   const Species* sp = SPECIES_TABLE[currentSpeciesIdx];
   if (sp->states[personaState]) sp->states[personaState](tickCount);
-  _tgt = prev; _scale = prevS;
+  _explicitTgt = prev; _scale = prevS;
 }
 
 void buddyTick(uint8_t personaState) {
@@ -188,8 +191,8 @@ void buddyTick(uint8_t personaState) {
   lastDrawnSpecies = currentSpeciesIdx;
 
   // Clear the whole render strip — at 2× the body reaches y≈126, at 1× ≈82.
-  spr.fillRect(0, 0, BUDDY_CANVAS_W,
-               (BUDDY_Y_BASE + 5 * BUDDY_CHAR_H + 12) * _scale, BUDDY_BG);
+  tgt()->fillRect(0, 0, BUDDY_CANVAS_W,
+                  (BUDDY_Y_BASE + 5 * BUDDY_CHAR_H + 12) * _scale, BUDDY_BG);
 
   const Species* sp = SPECIES_TABLE[currentSpeciesIdx];
   if (sp->states[personaState]) sp->states[personaState](tickCount);
