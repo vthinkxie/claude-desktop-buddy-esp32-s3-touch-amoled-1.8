@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include "ble_bridge.h"
+#include "hw/rtc.h"
 #include "xfer.h"
 
 struct TamaState {
@@ -78,11 +79,15 @@ static void _applyJson(const char* line, TamaState* out) {
   if (!t.isNull() && t.size() == 2) {
     time_t local = (time_t)t[0].as<uint32_t>() + (int32_t)t[1];
     struct tm lt; gmtime_r(&local, &lt);
-    RTC_TimeTypeDef tm = { (uint8_t)lt.tm_hour, (uint8_t)lt.tm_min, (uint8_t)lt.tm_sec };
-    RTC_DateTypeDef dt = { (uint8_t)lt.tm_wday, (uint8_t)(lt.tm_mon + 1),
-                           (uint8_t)lt.tm_mday, (uint16_t)(lt.tm_year + 1900) };
-    M5.Rtc.SetTime(&tm);
-    M5.Rtc.SetDate(&dt);
+    HwTime ht;
+    ht.H  = lt.tm_hour;
+    ht.M  = lt.tm_min;
+    ht.S  = lt.tm_sec;
+    ht.Y  = lt.tm_year + 1900;
+    ht.Mo = lt.tm_mon + 1;
+    ht.D  = lt.tm_mday;
+    ht.dow = lt.tm_wday;
+    hwRtcWrite(ht);
     extern uint32_t _clkLastRead;
     _clkLastRead = 0;   // force re-read so _clkDt and _rtcValid agree
     _rtcValid = true;

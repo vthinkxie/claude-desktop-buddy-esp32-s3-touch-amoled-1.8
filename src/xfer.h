@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include <LittleFS.h>
 #include "ble_bridge.h"
+#include "hw/power.h"
 #include <mbedtls/base64.h>
 #include <ArduinoJson.h>
 
@@ -72,7 +73,6 @@ const char* petName();
 void ownerSet(const char* name);
 const char* ownerName();
 #include "stats.h"
-#include <M5StickCPlus.h>
 
 inline bool xferCommand(JsonDocument& doc) {
   const char* cmd = doc["cmd"];
@@ -112,11 +112,11 @@ inline bool xferCommand(JsonDocument& doc) {
   if (strcmp(cmd, "status") == 0) {
     // Dump everything the info screens show. Manual printf rather than
     // ArduinoJson serialize — less heap churn, and the shape is fixed.
-    int vBat = (int)(M5.Axp.GetBatVoltage() * 1000);
-    int iBat = (int)M5.Axp.GetBatCurrent();
-    int vBus = (int)(M5.Axp.GetVBusVoltage() * 1000);
-    int pct = (vBat - 3200) / 10;
-    if (pct < 0) pct = 0; if (pct > 100) pct = 100;
+    HwBattery hb = hwBattery();
+    int vBat = hb.mV;
+    int iBat = hb.mA;
+    int vBus = hb.usbPresent ? 5000 : 0;
+    int pct  = hb.pct;
     char b[320];
     int len = snprintf(b, sizeof(b),
       "{\"ack\":\"status\",\"ok\":true,\"n\":0,\"data\":{"
