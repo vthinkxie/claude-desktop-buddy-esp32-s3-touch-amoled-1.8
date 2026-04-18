@@ -13,4 +13,9 @@ struct HwBattery {
 bool hwPowerInit();
 HwBattery hwBattery();
 void hwPowerOff();
-uint32_t hwAxpIrqStatusClear();   // returns IRQ status, clears it
+// AXP2101 power-key IRQ helpers. Each call reads + clears the IRQ
+// flag, returning true at most once per physical press. Use these
+// instead of raw getIrqStatus() — the AXP register bit positions
+// don't match the XPOWERS_PWR_BTN_* enum values.
+bool hwAxpPekeyShortPress();
+bool hwAxpPekeyLongPress();

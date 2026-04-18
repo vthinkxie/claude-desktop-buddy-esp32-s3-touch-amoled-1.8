@@ -41,8 +41,16 @@ HwBattery hwBattery() {
 
 void hwPowerOff() { s_pmu.shutdown(); }
 
-uint32_t hwAxpIrqStatusClear() {
-  uint32_t s = s_pmu.getIrqStatus();
-  s_pmu.clearIrqStatus();
-  return s;
+bool hwAxpPekeyShortPress() {
+  s_pmu.getIrqStatus();
+  bool hit = s_pmu.isPekeyShortPressIrq();
+  if (hit) s_pmu.clearIrqStatus();
+  return hit;
+}
+
+bool hwAxpPekeyLongPress() {
+  s_pmu.getIrqStatus();
+  bool hit = s_pmu.isPekeyLongPressIrq();
+  if (hit) s_pmu.clearIrqStatus();
+  return hit;
 }

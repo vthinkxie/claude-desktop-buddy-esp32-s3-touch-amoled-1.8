@@ -3,7 +3,6 @@
 #include "hw/expander.h"
 #include "hw/power.h"
 #include <Arduino.h>
-#include <XPowersLib.h>
 
 static HwBtn   s_a, s_b;
 static HwTouch s_tp;
@@ -29,9 +28,8 @@ static void scanKey1() {
 
 static void scanAxp() {
   if (hwExpanderAxpIrqLow()) {
-    uint32_t status = hwAxpIrqStatusClear();
-    if (status & XPOWERS_PWR_BTN_CLICK_INT)        s_axpEvt = 0x02;
-    if (status & XPOWERS_PWR_BTN_LONGPRESSED_INT)  s_axpEvt = 0x04;
+    if (hwAxpPekeyShortPress()) s_axpEvt = 0x02;
+    if (hwAxpPekeyLongPress())  s_axpEvt = 0x04;
   }
   // Route 0x02 to BtnB pulse for one frame:
   bool pressed = (s_axpEvt == 0x02);
