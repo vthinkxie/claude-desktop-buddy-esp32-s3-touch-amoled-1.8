@@ -1224,5 +1224,17 @@ void loop() {
     screenOff = true;
   }
 
+  // AMOLED burn-in mitigation: every 5 min force a full canvas redraw.
+  // OLED pixels degrade where they stay lit at constant value; redrawing
+  // (rather than incremental updates) at least exercises every pixel for
+  // a frame. A more aggressive 1-px shimmy could shift the whole canvas
+  // each cycle, but this minimum is a safe baseline.
+  static uint32_t lastShimmy = 0;
+  if (millis() - lastShimmy > 5UL * 60UL * 1000UL) {
+    lastShimmy = millis();
+    characterInvalidate();
+    if (buddyMode) buddyInvalidate();
+  }
+
   delay(screenOff ? 100 : 16);
 }
