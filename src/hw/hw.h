@@ -1,5 +1,12 @@
 #pragma once
-#include <stdint.h>
+#include "hw/display.h"
+#include "hw/input.h"
+#include "hw/power.h"
+#include "hw/imu.h"
+#include "hw/rtc.h"
+#include "hw/audio.h"
+#include "hw/border.h"
+#include "hw/expander.h"
+#include "hw/pins.h"
 
-// Top-level initialiser; calls all subsystem init in correct order
-void hwInit();
+void hwInit();   // initialises every subsystem; while(1) on any failure
