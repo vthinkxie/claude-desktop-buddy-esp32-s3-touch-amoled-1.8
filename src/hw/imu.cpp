@@ -21,7 +21,8 @@ void hwImuAccel(float* ax, float* ay, float* az) {
   s_qmi.getAccelerometer(d.x, d.y, d.z);
   *ax = d.x;
   *ay = d.y;
-  *az = d.z;
-  // If smoke test 3 reveals az is inverted vs M5 expectation, flip here:
-  // *az = -d.z;
+  // Z is inverted vs M5StickC convention. Smoke 3 verified: screen-up
+  // gives raw d.z ≈ -0.94 on this board, but the original face-down
+  // detector wants az < -0.7 for face-DOWN. Flip the sign.
+  *az = -d.z;
 }
