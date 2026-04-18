@@ -37,3 +37,40 @@ void hwDisplaySleep(bool off) {
     hwDisplayBrightness(2);   // mid; caller usually re-applies stored level
   }
 }
+
+static uint16_t s_lineBuf[LCD_W_PHYS];   // one physical row, internal RAM
+static bool     s_borderAlertOn = false;
+
+extern "C" void hwBorderAlertSetInternal(bool on);  // forward decl from border.cpp
+
+void hwBorderAlertSetInternal(bool on) { s_borderAlertOn = on; }
+
+static const uint16_t BORDER_RED = 0xF800;
+
+void hwDisplayPush() {
+  uint16_t* src = (uint16_t*)s_canvas->getFramebuffer();
+  for (int y = 0; y < HW_H; y++) {
+    bool isBorderRow = s_borderAlertOn && (y < 4 || y >= HW_H - 4);
+
+    if (isBorderRow) {
+      for (int i = 0; i < LCD_W_PHYS; i++) s_lineBuf[i] = BORDER_RED;
+    } else {
+      uint16_t* row = src + y * HW_W;
+      for (int x = 0; x < HW_W; x++) {
+        uint16_t c = row[x];
+        s_lineBuf[x*2]     = c;
+        s_lineBuf[x*2 + 1] = c;
+      }
+      if (s_borderAlertOn) {
+        // Left/right 8 physical pixels = 4 logical pixels of red border
+        for (int i = 0; i < 8; i++) {
+          s_lineBuf[i] = BORDER_RED;
+          s_lineBuf[LCD_W_PHYS - 1 - i] = BORDER_RED;
+        }
+      }
+    }
+
+    s_gfx->draw16bitRGBBitmap(0, y * 2,     s_lineBuf, LCD_W_PHYS, 1);
+    s_gfx->draw16bitRGBBitmap(0, y * 2 + 1, s_lineBuf, LCD_W_PHYS, 1);
+  }
+}
