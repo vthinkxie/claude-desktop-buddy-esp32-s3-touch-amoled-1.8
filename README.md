@@ -20,12 +20,28 @@ waiting, and lets you approve or deny right from the device.
   <img src="docs/device.jpg" alt="M5StickC Plus running the buddy firmware" width="500">
 </p>
 
-## Hardware
+## Boards supported
 
-The firmware targets ESP32 with the Arduino framework. As written, it
-depends on the M5StickCPlus library for its display, IMU, and button
-drivers—so you'll need that board, or a fork that swaps those drivers for
-your own pin layout.
+This repository hosts firmware for two boards on separate branches:
+
+- **`main`** — M5StickC Plus (135×240 LCD, 2 buttons, AXP192). Original target.
+- **`waveshare`** — Waveshare ESP32-S3-Touch-AMOLED-1.8 (368×448 AMOLED,
+  capacitive touch, 2 buttons, AXP2101, QMI8658, PCF85063, ES8311).
+
+The BLE wire protocol in [REFERENCE.md](REFERENCE.md) is identical between
+boards. Each branch carries its own `platformio.ini` env.
+
+## Hardware (this branch — Waveshare)
+
+ESP32-S3-Touch-AMOLED-1.8 from Waveshare. The firmware targets ESP32-S3
+with the Arduino 3.x framework via the [pioarduino](https://github.com/pioarduino/platform-espressif32)
+platform. Drivers are wrapped in a thin HAL layer at `src/hw/` so swapping
+to a similar ESP32-S3 board mainly means changing `src/hw/pins.h` and the
+display init.
+
+Internal canvas is 184×224 (logical), 2× nearest-neighbor upscaled to the
+368×448 panel on each frame — this preserves the chunky-pixel aesthetic
+of the M5StickC original and keeps Canvas memory at ~80 KB (PSRAM).
 
 ## Flashing
 
@@ -34,17 +50,18 @@ Install
 then:
 
 ```bash
-pio run -t upload
+pio run -e waveshare-amoled -t upload
 ```
 
-If you're starting from a previously-flashed device, wipe it first:
+If you're starting from a previously-flashed device (e.g. the factory
+Xiaozhi firmware), wipe it first:
 
 ```bash
-pio run -t erase && pio run -t upload
+pio run -e waveshare-amoled -t erase && pio run -e waveshare-amoled -t upload
 ```
 
-Once running, you can also wipe everything from the device itself: **hold A
-→ settings → reset → factory reset → tap twice**.
+Once running, you can also wipe everything from the device itself: **hold
+Key1 → settings → reset → factory reset → tap twice**.
 
 ## Pairing
 
@@ -68,18 +85,29 @@ If discovery isn't finding the stick:
 
 ## Controls
 
-|                         | Normal               | Pet         | Info        | Approval    |
-| ----------------------- | -------------------- | ----------- | ----------- | ----------- |
-| **A** (front)           | next screen          | next screen | next screen | **approve** |
-| **B** (right)           | scroll transcript    | next page   | next page   | **deny**    |
-| **Hold A**              | menu                 | menu        | menu        | menu        |
-| **Power** (left, short) | toggle screen off    |             |             |             |
-| **Power** (left, ~6s)   | hard power off       |             |             |             |
-| **Shake**               | dizzy                |             |             | —           |
-| **Face-down**           | nap (energy refills) |             |             |             |
+The board has two physical keys. **Key1** is the BOOT button (acts as
+"A" in the table). **Key3** is the AXP power key (short-press = "B").
 
-The screen auto-powers-off after 30s of no interaction (kept on while an
-approval prompt is up). Any button press wakes it.
+|                          | Normal               | Pet         | Info        | Approval    |
+| ------------------------ | -------------------- | ----------- | ----------- | ----------- |
+| **Key1** (BOOT)          | next screen          | next screen | next screen | **approve** |
+| **Key3** (PWR, short)    | scroll transcript    | next page   | next page   | **deny**    |
+| **Hold Key1**            | menu                 | menu        | menu        | menu        |
+| **Key3** (PWR, ~1s long) | toggle screen off    |             |             |             |
+| **Key3** (PWR, ~6s)      | hard power off       |             |             |             |
+| **Shake**                | dizzy                |             |             | —           |
+| **Face-down**            | nap (energy refills) |             |             |             |
+
+Touch is supplemental — keys remain primary:
+
+- **Approval screen** — tap upper half = approve, lower half = deny
+- **Menu / Settings / Reset** — tap a row to select+confirm in one go
+- **Info / Pet pages** — tap top-right corner to cycle pages
+- **Normal HUD** — tap bottom 32 px to scroll the transcript
+
+The screen auto-powers-off after 30 s of no interaction (kept on while
+an approval prompt is up, and while on USB power so the clock face stays
+visible). Any key press or screen tap wakes it.
 
 ## ASCII pets
 
