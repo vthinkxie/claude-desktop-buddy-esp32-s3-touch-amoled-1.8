@@ -57,13 +57,17 @@ static void scanAxp() {
 }
 
 static void scanTouch() {
-  if (!s_tpIrqFlag) {
+  // Poll when IRQ fires OR when a finger was down last frame — FT3168 only
+  // reliably IRQs on state edges, so a drag wouldn't advance x/y without this.
+  bool shouldPoll = s_tpIrqFlag || s_tp.down;
+  s_tpIrqFlag = false;
+
+  if (!shouldPoll) {
     s_tp.justPressed  = false;
-    s_tp.justReleased = s_tp.down;
-    s_tp.down         = false;
+    s_tp.justReleased = false;
     return;
   }
-  s_tpIrqFlag = false;
+
   uint8_t fingers = (uint8_t)s_ft3168->IIC_Read_Device_Value(
       Arduino_IIC_Touch::Value_Information::TOUCH_FINGER_NUMBER);
   if (fingers > 0) {
