@@ -1257,18 +1257,13 @@ void loop() {
       };
       activeState = PLAYFUL[(now / 5000) % 6];
     } else {
-      uint8_t dow = clockDow();
-      bool weekend = (dow == 0 || dow == 6);
-      bool friday  = (dow == 5);
-
+      // Ambient rhythm is SLEEP↔IDLE only. Emotional states (HEART, CELEBRATE,
+      // DIZZY) are reactions — they fire from real events (shake, fast-approve,
+      // level-up, pet tap, species swipe) via triggerOneShot / playful window,
+      // never spontaneously from wall-clock mood.
       uint8_t h = _clkTm.H;
-      if (h >= 1 && h < 7)             activeState = P_SLEEP;
-      else if (weekend)                activeState = (now/8000 % 6 == 0) ? P_HEART : P_SLEEP;
-      else if (h < 9)                  activeState = (now/6000 % 4 == 0) ? P_IDLE  : P_SLEEP;
-      else if (h == 12)                activeState = (now/5000 % 3 == 0) ? P_HEART : P_IDLE;
-      else if (friday && h >= 15)      activeState = (now/4000 % 3 == 0) ? P_CELEBRATE : P_IDLE;
-      else if (h >= 22 || h == 0)      activeState = (now/7000 % 3 == 0) ? P_DIZZY : P_SLEEP;
-      else                             activeState = (now/10000 % 5 == 0) ? P_SLEEP : P_IDLE;
+      if (h < 7 || h >= 22) activeState = (now/15000 % 8 == 0) ? P_IDLE  : P_SLEEP;
+      else                  activeState = (now/12000 % 6 == 0) ? P_SLEEP : P_IDLE;
     }
   }
 
