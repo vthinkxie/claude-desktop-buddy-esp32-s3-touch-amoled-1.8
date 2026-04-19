@@ -1,6 +1,6 @@
 # claude-desktop-buddy — ESP32-S3 AMOLED port
 
-![](image.jpg)
+<img src="image.jpg" width="400" />
 
 Claude for macOS and Windows can connect Claude Cowork and Claude Code to
 maker devices over BLE, so developers and makers can build hardware that
