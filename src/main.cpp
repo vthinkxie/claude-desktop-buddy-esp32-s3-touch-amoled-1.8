@@ -729,13 +729,13 @@ static void drawPetStats(const Palette& p) {
   int y = TOP + 16;
 
   spr.setTextColor(p.textDim, p.bg);
-  spr.setCursor(6, y - 2); spr.print("mood");
+  spr.setCursor(SAFE_L, y - 2); spr.print("mood");
   uint8_t mood = statsMoodTier();
   uint16_t moodCol = (mood >= 3) ? RED : (mood >= 2) ? HOT : p.textDim;
   for (int i = 0; i < 4; i++) tinyHeart(54 + i * 16, y + 2, i < mood, moodCol);
 
   y += 20;
-  spr.setCursor(6, y - 2); spr.print("fed");
+  spr.setCursor(SAFE_L, y - 2); spr.print("fed");
   uint8_t fed = statsFedProgress();
   for (int i = 0; i < 10; i++) {
     int px = 38 + i * 9;
@@ -744,7 +744,7 @@ static void drawPetStats(const Palette& p) {
   }
 
   y += 20;
-  spr.setCursor(6, y - 2); spr.print("energy");
+  spr.setCursor(SAFE_L, y - 2); spr.print("energy");
   uint8_t en = statsEnergyTier();
   uint16_t enCol = (en >= 4) ? 0x07FF : (en >= 2) ? 0xFFE0 : HOT;
   for (int i = 0; i < 5; i++) {
@@ -754,21 +754,21 @@ static void drawPetStats(const Palette& p) {
   }
 
   y += 24;
-  spr.fillRoundRect(6, y - 2, 42, 14, 3, p.body);
+  spr.fillRoundRect(SAFE_L, y - 2, 42, 14, 3, p.body);
   spr.setTextColor(p.bg, p.body);
-  spr.setCursor(11, y + 1); spr.printf("Lv %u", stats().level);
+  spr.setCursor(SAFE_L + 5, y + 1); spr.printf("Lv %u", stats().level);
 
   y += 20;
   spr.setTextColor(p.textDim, p.bg);
-  spr.setCursor(6, y);
+  spr.setCursor(SAFE_L, y);
   spr.printf("approved %u", stats().approvals);
-  spr.setCursor(6, y + 10);
+  spr.setCursor(SAFE_L, y + 10);
   spr.printf("denied   %u", stats().denials);
   uint32_t nap = stats().napSeconds;
-  spr.setCursor(6, y + 20);
+  spr.setCursor(SAFE_L, y + 20);
   spr.printf("napped   %luh%02lum", nap/3600, (nap/60)%60);
   auto tokFmt = [&](const char* label, uint32_t v, int yPx) {
-    spr.setCursor(6, yPx);
+    spr.setCursor(SAFE_L, yPx);
     if (v >= 1000000)   spr.printf("%s%lu.%luM", label, v/1000000, (v/100000)%10);
     else if (v >= 1000) spr.printf("%s%lu.%luK", label, v/1000, (v/100)%10);
     else                spr.printf("%s%lu", label, v);
