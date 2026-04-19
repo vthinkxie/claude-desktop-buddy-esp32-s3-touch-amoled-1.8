@@ -405,7 +405,7 @@ static void drawClock() {
   // horizontal room for HH:MM:SS at size 3 (8 chars × 18 = 144 px).
   spr.fillRect(0, 140, W, H - 140, p.bg);
   drawCenteredText(hms, CX, 160, 3, p.text,    p.bg);
-  drawCenteredText(dl,  CX, 195, 1, p.textDim, p.bg);
+  drawCenteredText(dl,  CX, SAFE_B - 21, 1, p.textDim, p.bg);
   spr.setTextSize(1);
 }
 
