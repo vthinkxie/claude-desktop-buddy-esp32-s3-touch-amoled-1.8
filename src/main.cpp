@@ -1144,7 +1144,10 @@ void loop() {
     if (buddyMode) buddyInvalidate();
     wasClocking = clocking;
   }
-  if (clocking) {
+  // Skip the time-of-day mood logic while a one-shot animation
+  // (shake → dizzy, level-up → celebrate, fast-approve → heart) is
+  // active — otherwise it would overwrite activeState immediately.
+  if (clocking && (int32_t)(now - oneShotUntil) >= 0) {
     uint8_t dow = clockDow();
     bool weekend = (dow == 0 || dow == 6);
     bool friday  = (dow == 5);

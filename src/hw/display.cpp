@@ -52,27 +52,24 @@ static const uint16_t BORDER_RED = 0xF800;
 void hwDisplayPush() {
   uint16_t* src = (uint16_t*)s_canvas->getFramebuffer();
   for (int y = 0; y < HW_H; y++) {
-    bool isBorderRow = s_borderAlertOn && (y < 4 || y >= HW_H - 4);
-
-    if (isBorderRow) {
-      for (int i = 0; i < LCD_W_PHYS; i++) s_lineBuf[i] = BORDER_RED;
-    } else {
-      uint16_t* row = src + y * HW_W;
-      for (int x = 0; x < HW_W; x++) {
-        uint16_t c = row[x];
-        s_lineBuf[x*2]     = c;
-        s_lineBuf[x*2 + 1] = c;
-      }
-      if (s_borderAlertOn) {
-        // Left/right 8 physical pixels = 4 logical pixels of red border
-        for (int i = 0; i < 8; i++) {
-          s_lineBuf[i] = BORDER_RED;
-          s_lineBuf[LCD_W_PHYS - 1 - i] = BORDER_RED;
-        }
-      }
+    uint16_t* row = src + y * HW_W;
+    for (int x = 0; x < HW_W; x++) {
+      uint16_t c = row[x];
+      s_lineBuf[x*2]     = c;
+      s_lineBuf[x*2 + 1] = c;
     }
-
     s_gfx->draw16bitRGBBitmap(0, y * 2,     s_lineBuf, LCD_W_PHYS, 1);
     s_gfx->draw16bitRGBBitmap(0, y * 2 + 1, s_lineBuf, LCD_W_PHYS, 1);
+  }
+
+  // Attention indicator: small red pill centered at the top of the
+  // panel. Inset well below the rounded bezel corners. Less intrusive
+  // than a full frame; reads as a "notification dot".
+  if (s_borderAlertOn) {
+    const int BAR_W = 200;
+    const int BAR_H = 8;
+    const int BAR_Y = 18;
+    const int BAR_X = (LCD_W_PHYS - BAR_W) / 2;
+    s_gfx->fillRoundRect(BAR_X, BAR_Y, BAR_W, BAR_H, BAR_H / 2, BORDER_RED);
   }
 }

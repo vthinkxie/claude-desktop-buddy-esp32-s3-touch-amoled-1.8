@@ -68,6 +68,18 @@ inline const char* dataScenarioName() {
 static bool _rtcValid = false;
 inline bool dataRtcValid() { return _rtcValid; }
 
+// Replace non-ASCII bytes (UTF-8 multi-byte sequences for Chinese, etc.)
+// with random "Matrix-rain"-flavoured ASCII glyphs. The font is ASCII-only,
+// so otherwise these bytes render as garbage. One Chinese char (3 bytes)
+// becomes 3 random ASCII chars — fits the digital-rain look.
+static void _matrixify(char* s) {
+  static const char POOL[] = "01<>{}[]/\\|*~$%#@&=+-_:;.!?ABCDEFGHJKLMNPQRSTVWXYZ";
+  static const int  POOL_N = sizeof(POOL) - 1;
+  for (; *s; s++) {
+    if ((uint8_t)*s > 127) *s = POOL[esp_random() % POOL_N];
+  }
+}
+
 static void _applyJson(const char* line, TamaState* out) {
   JsonDocument doc;
   if (deserializeJson(doc, line)) return;
@@ -103,7 +115,10 @@ static void _applyJson(const char* line, TamaState* out) {
   if (doc["tokens"].is<uint32_t>()) statsOnBridgeTokens(bridgeTokens);
   out->tokensToday = doc["tokens_today"] | out->tokensToday;
   const char* m = doc["msg"];
-  if (m) { strncpy(out->msg, m, sizeof(out->msg)-1); out->msg[sizeof(out->msg)-1]=0; }
+  if (m) {
+    strncpy(out->msg, m, sizeof(out->msg)-1); out->msg[sizeof(out->msg)-1]=0;
+    _matrixify(out->msg);
+  }
   JsonArray la = doc["entries"];
   if (!la.isNull()) {
     uint8_t n = 0;
@@ -111,6 +126,7 @@ static void _applyJson(const char* line, TamaState* out) {
       if (n >= 8) break;
       const char* s = v.as<const char*>();
       strncpy(out->lines[n], s ? s : "", 91); out->lines[n][91]=0;
+      _matrixify(out->lines[n]);
       n++;
     }
     if (n != out->nLines || (n > 0 && strcmp(out->lines[n-1], out->msg) != 0)) {
@@ -124,6 +140,9 @@ static void _applyJson(const char* line, TamaState* out) {
     strncpy(out->promptId,   pid ? pid : "", sizeof(out->promptId)-1);   out->promptId[sizeof(out->promptId)-1]=0;
     strncpy(out->promptTool, pt  ? pt  : "", sizeof(out->promptTool)-1); out->promptTool[sizeof(out->promptTool)-1]=0;
     strncpy(out->promptHint, ph  ? ph  : "", sizeof(out->promptHint)-1); out->promptHint[sizeof(out->promptHint)-1]=0;
+    _matrixify(out->promptTool);
+    _matrixify(out->promptHint);
+    // Don't matrixify promptId — it's an opaque token, must echo verbatim.
   } else {
     out->promptId[0] = 0; out->promptTool[0] = 0; out->promptHint[0] = 0;
   }
