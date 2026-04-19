@@ -98,6 +98,22 @@ static void nextPet() {
   characterInvalidate();
   if (buddyMode) buddyInvalidate();
 }
+
+static void prevPet() {
+  uint8_t n = buddySpeciesCount();
+  if (!buddyMode) {                          // GIF → last species
+    buddyMode = true;
+    buddySetSpeciesIdx(n - 1);
+    speciesIdxSave(n - 1);
+  } else if (buddySpeciesIdx() == 0 && gifAvailable) {      // first species → GIF
+    buddyMode = false;
+    speciesIdxSave(SPECIES_GIF);
+  } else {
+    buddyPrevSpecies();
+  }
+  characterInvalidate();
+  if (buddyMode) buddyInvalidate();
+}
 uint32_t wakeTransitionUntil = 0;
 const uint32_t SCREEN_OFF_MS    = 30UL * 1000UL;        // 30s on battery, non-clock idle
 const uint32_t CLOCK_OFF_MS_BAT = 5UL  * 60UL * 1000UL; // 5min on battery, clock visible
@@ -137,6 +153,17 @@ static bool tap(int x, int y, int w, int h) {
   const HwTouch& t = hwTouch();
   return t.justPressed && t.x >= x && t.y >= y && t.x < x+w && t.y < y+h;
 }
+
+// Press-start snapshot for gesture classification (swipe). Updated on every
+// justPressed; read on justReleased to compute Δx/Δy/Δt.
+static int16_t  _tpStartX = 0, _tpStartY = 0;
+static uint32_t _tpStartMs = 0;
+
+// After a user interaction in clock mode (pet tap or species swipe), keep the
+// buddy awake for this long — otherwise the time-of-day logic snaps back to
+// P_SLEEP the instant the one-shot animation expires.
+static const uint32_t PLAYFUL_MS = 3UL * 60UL * 1000UL;
+static uint32_t _playfulUntil = 0;
 
 static void sendCmd(const char* json) {
   Serial.println(json);
@@ -1082,6 +1109,16 @@ void loop() {
   }
 
   // ─── Touch (additive — buttons above already handled) ──────────────
+  // Clocking = idle home screen with RTC synced; drives gesture routing:
+  // HUD (!clocking) gets tap-to-pet, clocking gets horizontal-swipe-to-switch-species.
+  bool tpClocking = displayMode == DISP_NORMAL
+                 && !menuOpen && !settingsOpen && !resetOpen && !inPrompt
+                 && tama.sessionsRunning == 0 && tama.sessionsWaiting == 0
+                 && dataRtcValid();
+
+  const HwTouch& tp = hwTouch();
+  if (tp.justPressed) { _tpStartX = tp.x; _tpStartY = tp.y; _tpStartMs = millis(); }
+
   // Approval: tap upper half of the approval area = approve,
   //           tap lower half = deny.
   if (inPrompt) {
@@ -1134,10 +1171,39 @@ void loop() {
     beep(2400, 30);
     petPage = (petPage + 1) % PET_PAGES;
     applyDisplayMode();
-  } else if (displayMode == DISP_NORMAL && tap(0, H - 32, W, 32)) {
+  } else if (displayMode == DISP_NORMAL && !tpClocking && tap(12, 20, W - 24, 110)) {
+    // Tap buddy body → heart reaction (HUD only; clock mode uses swipe).
+    triggerOneShot(P_HEART, 2000);
+    _playfulUntil = millis() + PLAYFUL_MS;
+    characterInvalidate();
+    if (buddyMode) buddyInvalidate();
+    beep(2400, 50);
+  } else if (displayMode == DISP_NORMAL && !tpClocking && tap(0, H - 32, W, 32)) {
     // Bottom strip → scroll transcript back (mirrors BtnB short-press)
     beep(2400, 30);
     msgScroll = (msgScroll >= 30) ? 0 : msgScroll + 1;
+  }
+
+  // Clock-mode gestures on release: horizontal swipe → species, near-stationary
+  // tap in the buddy region → heart. Release-based classification so the two
+  // gestures don't race with press-based handlers above.
+  if (tpClocking && tp.justReleased) {
+    int dx = tp.x - _tpStartX;
+    int dy = tp.y - _tpStartY;
+    uint32_t dt = millis() - _tpStartMs;
+    if (abs(dx) >= 40 && abs(dx) > abs(dy) * 2 && dt < 500) {
+      beep(2400, 30);
+      if (dx > 0) nextPet(); else prevPet();
+      _playfulUntil = millis() + PLAYFUL_MS;
+    } else if (abs(dx) < 12 && abs(dy) < 12 && dt < 800 &&
+               _tpStartY < 130) {
+      // Upper half = buddy region; lower half is the clock digits.
+      triggerOneShot(P_HEART, 2000);
+      _playfulUntil = millis() + PLAYFUL_MS;
+      characterInvalidate();
+      if (buddyMode) buddyInvalidate();
+      beep(2400, 50);
+    }
   }
 
   // blink bookkeeping
@@ -1182,18 +1248,28 @@ void loop() {
   // (shake → dizzy, level-up → celebrate, fast-approve → heart) is
   // active — otherwise it would overwrite activeState immediately.
   if (clocking && (int32_t)(now - oneShotUntil) >= 0) {
-    uint8_t dow = clockDow();
-    bool weekend = (dow == 0 || dow == 6);
-    bool friday  = (dow == 5);
+    if ((int32_t)(now - _playfulUntil) < 0) {
+      // Recently interacted with (pet tap / species swipe) — rotate through
+      // awake animations instead of falling back to the time-of-day logic
+      // that mostly picks P_SLEEP. Decays to normal after PLAYFUL_MS.
+      static const PersonaState PLAYFUL[] = {
+        P_IDLE, P_IDLE, P_HEART, P_IDLE, P_CELEBRATE, P_IDLE
+      };
+      activeState = PLAYFUL[(now / 5000) % 6];
+    } else {
+      uint8_t dow = clockDow();
+      bool weekend = (dow == 0 || dow == 6);
+      bool friday  = (dow == 5);
 
-    uint8_t h = _clkTm.H;
-    if (h >= 1 && h < 7)             activeState = P_SLEEP;
-    else if (weekend)                activeState = (now/8000 % 6 == 0) ? P_HEART : P_SLEEP;
-    else if (h < 9)                  activeState = (now/6000 % 4 == 0) ? P_IDLE  : P_SLEEP;
-    else if (h == 12)                activeState = (now/5000 % 3 == 0) ? P_HEART : P_IDLE;
-    else if (friday && h >= 15)      activeState = (now/4000 % 3 == 0) ? P_CELEBRATE : P_IDLE;
-    else if (h >= 22 || h == 0)      activeState = (now/7000 % 3 == 0) ? P_DIZZY : P_SLEEP;
-    else                             activeState = (now/10000 % 5 == 0) ? P_SLEEP : P_IDLE;
+      uint8_t h = _clkTm.H;
+      if (h >= 1 && h < 7)             activeState = P_SLEEP;
+      else if (weekend)                activeState = (now/8000 % 6 == 0) ? P_HEART : P_SLEEP;
+      else if (h < 9)                  activeState = (now/6000 % 4 == 0) ? P_IDLE  : P_SLEEP;
+      else if (h == 12)                activeState = (now/5000 % 3 == 0) ? P_HEART : P_IDLE;
+      else if (friday && h >= 15)      activeState = (now/4000 % 3 == 0) ? P_CELEBRATE : P_IDLE;
+      else if (h >= 22 || h == 0)      activeState = (now/7000 % 3 == 0) ? P_DIZZY : P_SLEEP;
+      else                             activeState = (now/10000 % 5 == 0) ? P_SLEEP : P_IDLE;
+    }
   }
 
   static uint32_t lastPasskey = 0;
