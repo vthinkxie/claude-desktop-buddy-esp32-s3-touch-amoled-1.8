@@ -388,17 +388,17 @@ static void drawCenteredText(const char* s, int cx, int cy, int sz, uint16_t fg,
 }
 static void drawClock() {
   const Palette& p = characterPalette();
-  char hm[6]; snprintf(hm, sizeof(hm), "%02u:%02u", _clkTm.H, _clkTm.M);
-  char ss[4]; snprintf(ss, sizeof(ss), ":%02u", _clkTm.S);
+  char hms[12]; snprintf(hms, sizeof(hms), "%02u:%02u:%02u", _clkTm.H, _clkTm.M, _clkTm.S);
   uint8_t mi = (_clkTm.Mo >= 1 && _clkTm.Mo <= 12) ? _clkTm.Mo - 1 : 0;
-  char dl[8]; snprintf(dl, sizeof(dl), "%s %02u", MON[mi], _clkTm.D);
+  char dl[16]; snprintf(dl, sizeof(dl), "%s %s %02u", DOW[clockDow()], MON[mi], _clkTm.D);
 
-  // Bottom half — buddy lives at top of canvas; clear from y≈90 leaves
-  // pet area untouched.
-  spr.fillRect(0, 90, W, H - 90, p.bg);
-  drawCenteredText(hm, CX, 140, 4, p.text, p.bg);
-  drawCenteredText(ss, CX, 175, 2, p.textDim, p.bg);
-  drawCenteredText(dl, CX, 200, 1, p.textDim, p.bg);
+  // Compact clock: single-line HH:MM:SS plus date below. Clears only
+  // y >= 140 so the buddy at full home scale (reaches y≈126) fits
+  // entirely above. Wider canvas + portrait orientation has plenty of
+  // horizontal room for HH:MM:SS at size 3 (8 chars × 18 = 144 px).
+  spr.fillRect(0, 140, W, H - 140, p.bg);
+  drawCenteredText(hms, CX, 160, 3, p.text,    p.bg);
+  drawCenteredText(dl,  CX, 195, 1, p.textDim, p.bg);
   spr.setTextSize(1);
 }
 
@@ -1125,8 +1125,21 @@ void loop() {
   // Portrait-only clock on AMOLED port; landscape was removed.
   static bool wasClocking = false;
   if (clocking != wasClocking) {
-    if (clocking) characterSetPeek(true);
-    else          applyDisplayMode();
+    if (clocking) {
+      // GIFs are tall (up to 140 px) — must shrink to fit above clock.
+      // ASCII buddy at scale 2 reaches y≈126; clock starts at y=140
+      // (compact single-line layout) so peek isn't needed and the pet
+      // gets to keep its full size.
+      characterSetPeek(true);
+      buddySetPeek(false);
+      // Clear the full canvas once on entry: buddy/clock both update
+      // partial regions every frame, so any stale ink left behind from
+      // the previous mode would persist forever.
+      const Palette& cp = characterPalette();
+      spr.fillScreen(cp.bg);
+    } else {
+      applyDisplayMode();
+    }
     characterInvalidate();
     if (buddyMode) buddyInvalidate();
     wasClocking = clocking;
