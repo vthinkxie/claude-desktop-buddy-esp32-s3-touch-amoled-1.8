@@ -439,12 +439,12 @@ bool checkShake() {
 // B cycles pages here just like it does on PET.
 static void _infoHeader(const Palette& p, int& y, const char* section, uint8_t page) {
   spr.setTextColor(p.text, p.bg);
-  spr.setCursor(4, y); spr.print("Info");
+  spr.setCursor(SAFE_L, y); spr.print("Info");
   spr.setTextColor(p.textDim, p.bg);
-  spr.setCursor(W - 28, y); spr.printf("%u/%u", page + 1, INFO_PAGES);
+  spr.setCursor(SAFE_R - 24, y); spr.printf("%u/%u", page + 1, INFO_PAGES);
   y += 12;
   spr.setTextColor(p.body, p.bg);
-  spr.setCursor(4, y); spr.print(section);
+  spr.setCursor(SAFE_L, y); spr.print(section);
   y += 12;
 }
 
@@ -470,7 +470,7 @@ void drawInfo() {
   int y = TOP + 2;
   auto ln = [&](const char* fmt, ...) {
     char b[32]; va_list a; va_start(a, fmt); vsnprintf(b, sizeof(b), fmt, a); va_end(a);
-    spr.setCursor(4, y); spr.print(b); y += 8;
+    spr.setCursor(SAFE_L, y); spr.print(b); y += 8;
   };
 
   if (infoPage == 0) {
@@ -537,7 +537,7 @@ void drawInfo() {
 
     spr.setTextColor(p.text, p.bg);
     spr.setTextSize(2);
-    spr.setCursor(4, y);
+    spr.setCursor(SAFE_L, y);
     spr.printf("%d%%", pct);
     spr.setTextSize(1);
     spr.setTextColor(full ? GREEN : (charging ? HOT : p.textDim), p.bg);
@@ -568,7 +568,7 @@ void drawInfo() {
 
     spr.setTextColor(linked ? GREEN : (settings().bt ? HOT : p.textDim), p.bg);
     spr.setTextSize(2);
-    spr.setCursor(4, y);
+    spr.setCursor(SAFE_L, y);
     spr.print(linked ? "linked" : (settings().bt ? "discover" : "off"));
     spr.setTextSize(1);
     y += 20;
