@@ -672,7 +672,7 @@ static void drawApproval() {
 
   spr.setTextSize(1);
   spr.setTextColor(p.textDim, p.bg);
-  spr.setCursor(4, H - AREA + 4);
+  spr.setCursor(SAFE_L, H - AREA + 4);
   uint32_t waited = (millis() - promptArrivedMs) / 1000;
   if (waited >= 10) spr.setTextColor(HOT, p.bg);
   spr.printf("approve? %lus", (unsigned long)waited);
@@ -681,30 +681,30 @@ static void drawApproval() {
   int toolLen = strlen(tama.promptTool);
   spr.setTextColor(p.text, p.bg);
   spr.setTextSize(toolLen <= 10 ? 2 : 1);
-  spr.setCursor(4, H - AREA + (toolLen <= 10 ? 14 : 18));
+  spr.setCursor(SAFE_L, H - AREA + (toolLen <= 10 ? 14 : 18));
   spr.print(tama.promptTool);
   spr.setTextSize(1);
 
   // Hint wraps at ~21 chars to two lines under the tool name
   spr.setTextColor(p.textDim, p.bg);
   int hlen = strlen(tama.promptHint);
-  spr.setCursor(4, H - AREA + 34);
+  spr.setCursor(SAFE_L, H - AREA + 34);
   spr.printf("%.21s", tama.promptHint);
   if (hlen > 21) {
-    spr.setCursor(4, H - AREA + 42);
+    spr.setCursor(SAFE_L, H - AREA + 42);
     spr.printf("%.21s", tama.promptHint + 21);
   }
 
   if (responseSent) {
     spr.setTextColor(p.textDim, p.bg);
-    spr.setCursor(4, H - 12);
+    spr.setCursor(SAFE_L, SAFE_B - 12);
     spr.print("sent...");
   } else {
     spr.setTextColor(GREEN, p.bg);
-    spr.setCursor(4, H - 12);
+    spr.setCursor(SAFE_L, SAFE_B - 12);
     spr.print("A: approve");
     spr.setTextColor(HOT, p.bg);
-    spr.setCursor(W - 48, H - 12);
+    spr.setCursor(SAFE_R - 48, SAFE_B - 12);
     spr.print("B: deny");
   }
 }
@@ -818,14 +818,14 @@ void drawPet() {
   // Header on top of whichever page drew — title left, counter right
   spr.setTextSize(1);
   spr.setTextColor(p.text, p.bg);
-  spr.setCursor(4, y + 2);
+  spr.setCursor(SAFE_L, y + 2);
   if (ownerName()[0]) {
     spr.printf("%s's %s", ownerName(), petName());
   } else {
     spr.print(petName());
   }
   spr.setTextColor(p.textDim, p.bg);
-  spr.setCursor(W - 28, y + 2);
+  spr.setCursor(SAFE_R - 24, y + 2);
   spr.printf("%u/%u", petPage + 1, PET_PAGES);
 }
 
@@ -853,7 +853,7 @@ void drawHUD() {
 
   if (tama.nLines == 0) {
     spr.setTextColor(p.text, p.bg);
-    spr.setCursor(4, H - 4);
+    spr.setCursor(SAFE_L, SAFE_B - 4);
     spr.print(tama.msg);
     spr.setFont((const GFXfont*)NULL);
     return;
@@ -878,7 +878,7 @@ void drawHUD() {
     uint8_t row = start + i;
     bool fresh = (srcOf[row] == newest) && (msgScroll == 0);
     spr.setTextColor(fresh ? p.text : p.textDim, p.bg);
-    spr.setCursor(4, H - AREA + 8 + i * LH);   // +8 = baseline offset for 7-px font
+    spr.setCursor(SAFE_L, H - AREA + 8 + i * LH);   // +8 = baseline offset for 7-px font
     spr.print(disp[row]);
   }
 
@@ -887,7 +887,7 @@ void drawHUD() {
   if (msgScroll > 0) {
     spr.setTextSize(1);
     spr.setTextColor(p.body, p.bg);
-    spr.setCursor(W - 18, H - 10);
+    spr.setCursor(SAFE_R - 18, SAFE_B - 10);
     spr.printf("-%u", msgScroll);
   }
 }
@@ -1215,18 +1215,18 @@ void loop() {
     spr.setTextSize(1);
     if (xferActive()) {
       uint32_t done = xferProgress(), total = xferTotal();
-      spr.setCursor(8, 90);
+      spr.setCursor(SAFE_L, 90);
       spr.print("installing");
-      spr.setCursor(8, 102);
+      spr.setCursor(SAFE_L, 102);
       spr.printf("%luK / %luK", done/1024, total/1024);
       int barW = W - 16;
-      spr.drawRect(8, 116, barW, 8, p.textDim);
+      spr.drawRect(SAFE_L, 116, barW, 8, p.textDim);
       if (total > 0) {
         int fill = (int)((uint64_t)barW * done / total);
-        if (fill > 1) spr.fillRect(9, 117, fill - 1, 6, p.body);
+        if (fill > 1) spr.fillRect(SAFE_L + 1, 117, fill - 1, 6, p.body);
       }
     } else {
-      spr.setCursor(8, 100);
+      spr.setCursor(SAFE_L, 100);
       spr.print("no character loaded");
     }
   }
