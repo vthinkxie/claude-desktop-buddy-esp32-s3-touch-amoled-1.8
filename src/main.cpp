@@ -453,8 +453,8 @@ void drawPasskey() {
   spr.fillScreen(p.bg);
   spr.setTextSize(1);
   spr.setTextColor(p.textDim, p.bg);
-  spr.setCursor(8, 56);  spr.print("BLUETOOTH PAIRING");
-  spr.setCursor(8, 184); spr.print("enter on desktop:");
+  spr.setCursor(SAFE_L, 56);  spr.print("BLUETOOTH PAIRING");
+  spr.setCursor(SAFE_L, SAFE_B - 32); spr.print("enter on desktop:");
   spr.setTextSize(3);
   spr.setTextColor(p.text, p.bg);
   char b[8]; snprintf(b, sizeof(b), "%06lu", (unsigned long)blePasskey());
