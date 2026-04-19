@@ -840,8 +840,15 @@ void drawHUD() {
   const int AREA = SHOW * LH + 4;
   spr.fillRect(0, H - AREA, W, AREA, p.bg);
 
+  // Menu/settings/reset should hide the HUD strip underneath — panels are
+  // centered and don't cover the bottom 34 px on their own.
+  if (menuOpen || settingsOpen || resetOpen) return;
+
   if (tama.lineGen != lastLineGen) { msgScroll = 0; lastLineGen = tama.lineGen; wake(); }
 
+  // buddy/character ticks leave textsize at 2 (home scale); without
+  // pinning it here the CJK font alternates between 1× and 2× every tick.
+  spr.setTextSize(1);
   spr.setFont((const uint8_t*)u8g2_font_chill7_h_cjk);
 
   if (tama.nLines == 0) {

@@ -17,6 +17,9 @@ bool hwDisplayInit() {
   // canvas->begin() internally calls gfx->begin() which calls bus init.
   // Calling them separately would double-init the SPI bus → ESP_ERR_INVALID_STATE.
   if (!s_canvas->begin()) { Serial.println("hwDisplay: canvas begin failed"); return false; }
+  // UTF-8 decode for u8g2 CJK fonts — without this, print() treats each
+  // byte of a multi-byte codepoint as its own glyph lookup → mojibake.
+  s_canvas->setUTF8Print(true);
   s_gfx->setBrightness(0);   // black first frame to avoid white flash
   delay(20);
   s_gfx->setBrightness(150);  // default mid-brightness; main may override later
