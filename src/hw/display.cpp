@@ -53,6 +53,11 @@ void hwBorderAlertSetInternal(bool on) { s_borderAlertOn = on; }
 static const uint16_t BORDER_RED = 0xF800;
 
 void hwDisplayPush() {
+#ifdef DEBUG_SAFE_BOX
+  // 1-px green outline at the logical safe-area boundary. Used to
+  // empirically tune SAFE_INSET against the physical rounded bezel.
+  s_canvas->drawRect(SAFE_L, SAFE_T, SAFE_W, SAFE_H, 0x07E0);
+#endif
   uint16_t* src = (uint16_t*)s_canvas->getFramebuffer();
   for (int y = 0; y < HW_H; y++) {
     uint16_t* row = src + y * HW_W;
