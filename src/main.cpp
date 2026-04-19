@@ -783,7 +783,7 @@ static void drawPetHowTo(const Palette& p) {
   spr.setTextSize(1);
   int y = TOP + 2;
   auto ln = [&](uint16_t c, const char* s) {
-    spr.setTextColor(c, p.bg); spr.setCursor(6, y); spr.print(s); y += 9;
+    spr.setTextColor(c, p.bg); spr.setCursor(SAFE_L, y); spr.print(s); y += 9;
   };
   auto gap = [&]() { y += 4; };
 
