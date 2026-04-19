@@ -126,7 +126,9 @@ static void _applyJson(const char* line, TamaState* out) {
       if (n >= 8) break;
       const char* s = v.as<const char*>();
       strncpy(out->lines[n], s ? s : "", 91); out->lines[n][91]=0;
-      _matrixify(out->lines[n]);
+      // Transcript renders with a CJK u8g2 font (drawHUD), so leave the
+      // raw UTF-8 bytes intact — only msg/promptTool/promptHint stay
+      // ASCII-rendered and need matrixify.
       n++;
     }
     if (n != out->nLines || (n > 0 && strcmp(out->lines[n-1], out->msg) != 0)) {

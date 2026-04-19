@@ -1,3 +1,9 @@
+// Arduino_GFX's font headers reference an undefined U8G2_FONT_SECTION
+// macro — provide a no-op so the const array compiles. The font symbol
+// itself is gated on U8G2_USE_LARGE_FONTS (set in build_flags).
+#define U8G2_FONT_SECTION(name)
+#include <Arduino_GFX_Library.h>
+
 #include "hw/hw.h"
 #include <LittleFS.h>
 #include <stdarg.h>
@@ -93,7 +99,8 @@ static void nextPet() {
   if (buddyMode) buddyInvalidate();
 }
 uint32_t wakeTransitionUntil = 0;
-const uint32_t SCREEN_OFF_MS = 30000;
+const uint32_t SCREEN_OFF_MS    = 30UL * 1000UL;        // 30s on battery, non-clock idle
+const uint32_t CLOCK_OFF_MS_BAT = 5UL  * 60UL * 1000UL; // 5min on battery, clock visible
 
 bool     napping = false;
 uint32_t napStartMs = 0;
@@ -616,7 +623,15 @@ void drawInfo() {
 
 // Greedy word-wrap into fixed-width rows. Continuation rows get a leading
 // space. Returns number of rows written.
-static uint8_t wrapInto(const char* in, char out[][24], uint8_t maxRows, uint8_t width) {
+// UTF-8 continuation byte = 0b10xxxxxx. Pull `take` back so we never
+// land mid-codepoint when hard-breaking long Chinese sentences.
+static uint8_t _utf8SafeTake(const char* w, uint8_t take, uint8_t wlen) {
+  if (take == 0 || take >= wlen) return take;
+  while (take > 0 && ((uint8_t)w[take] & 0xC0) == 0x80) take--;
+  return take;
+}
+
+static uint8_t wrapInto(const char* in, char out[][48], uint8_t maxRows, uint8_t width) {
   uint8_t row = 0, col = 0;
   const char* p = in;
   while (*p && row < maxRows) {
@@ -634,9 +649,10 @@ static uint8_t wrapInto(const char* in, char out[][24], uint8_t maxRows, uint8_t
     }
     if (col > 1 || (col == 1 && out[row][0] != ' ')) out[row][col++] = ' ';
     else if (col == 1 && row > 0) {}           // already have the indent space
-    // hard-break words that still don't fit
+    // hard-break words that still don't fit, on UTF-8 char boundaries
     while (wlen > width - col) {
-      uint8_t take = width - col;
+      uint8_t take = _utf8SafeTake(w, width - col, wlen);
+      if (take == 0) take = 1;                 // safety: avoid infinite loop
       memcpy(&out[row][col], w, take); col += take; w += take; wlen -= take;
       out[row][col] = 0;
       if (++row >= maxRows) return row;
@@ -816,23 +832,27 @@ void drawPet() {
 void drawHUD() {
   if (tama.promptId[0]) { drawApproval(); return; }
   const Palette& p = characterPalette();
-  const int SHOW = 3, LH = 8, WIDTH = 21;
+  // chill7 font: glyphs ~7 px tall but baseline-positioned (setCursor
+  // is the baseline, not the top). Allow ~10 px line spacing, ~22 byte
+  // budget per line — Chinese chars are ~7 px wide, ASCII ~5 px, so a
+  // mixed line of 22 bytes (~7 Chinese OR 22 ASCII) fits W=184.
+  const int SHOW = 3, LH = 10, WIDTH = 22;
   const int AREA = SHOW * LH + 4;
   spr.fillRect(0, H - AREA, W, AREA, p.bg);
-  spr.setTextSize(1);
 
   if (tama.lineGen != lastLineGen) { msgScroll = 0; lastLineGen = tama.lineGen; wake(); }
 
+  spr.setFont((const uint8_t*)u8g2_font_chill7_h_cjk);
+
   if (tama.nLines == 0) {
     spr.setTextColor(p.text, p.bg);
-    spr.setCursor(4, H - LH - 2);
+    spr.setCursor(4, H - 4);
     spr.print(tama.msg);
+    spr.setFont((const GFXfont*)NULL);
     return;
   }
 
-  // Wrap all transcript lines into a flat display buffer. Track which
-  // transcript index each display row came from, so we can dim older ones.
-  static char disp[32][24];
+  static char disp[32][48];
   static uint8_t srcOf[32];
   uint8_t nDisp = 0;
   for (uint8_t i = 0; i < tama.nLines && nDisp < 32; i++) {
@@ -851,12 +871,16 @@ void drawHUD() {
     uint8_t row = start + i;
     bool fresh = (srcOf[row] == newest) && (msgScroll == 0);
     spr.setTextColor(fresh ? p.text : p.textDim, p.bg);
-    spr.setCursor(4, H - AREA + 2 + i * LH);
+    spr.setCursor(4, H - AREA + 8 + i * LH);   // +8 = baseline offset for 7-px font
     spr.print(disp[row]);
   }
+
+  spr.setFont((const GFXfont*)NULL);
+
   if (msgScroll > 0) {
+    spr.setTextSize(1);
     spr.setTextColor(p.body, p.bg);
-    spr.setCursor(W - 18, H - LH - 2);
+    spr.setCursor(W - 18, H - 10);
     spr.printf("-%u", msgScroll);
   }
 }
@@ -1118,10 +1142,13 @@ void loop() {
   clockRefreshRtc();   // 1Hz internal throttle; also caches _onUsb
   // Show the clock when nothing is happening — bridge heartbeat alone
   // doesn't count as activity (it's the only way to get the RTC synced).
+  // Clock shows when Claude is idle and the RTC is synced — regardless
+  // of USB power. On battery the screen still auto-offs after a longer
+  // timeout (CLOCK_OFF_MS_BAT) so it doesn't drain forever.
   bool clocking = displayMode == DISP_NORMAL
                && !menuOpen && !settingsOpen && !resetOpen && !inPrompt
                && tama.sessionsRunning == 0 && tama.sessionsWaiting == 0
-               && dataRtcValid() && _onUsb;
+               && dataRtcValid();
   // Portrait-only clock on AMOLED port; landscape was removed.
   static bool wasClocking = false;
   if (clocking != wasClocking) {
@@ -1233,11 +1260,17 @@ void loop() {
 
   // millis() not the cached `now`: wake() runs after `now` is captured,
   // so now - lastInteractMs underflows when a button is held → flicker.
-  // No auto-off on USB power — clock face wants to stay visible while charging.
-  if (!screenOff && !inPrompt && !_onUsb
-      && millis() - lastInteractMs > SCREEN_OFF_MS) {
-    hwDisplaySleep(true);
-    screenOff = true;
+  // Auto-off rules:
+  //   USB plugged: never (clock can stay visible indefinitely)
+  //   Battery + clock visible: 5 min (CLOCK_OFF_MS_BAT)
+  //   Battery + non-clock idle: 30 s (SCREEN_OFF_MS)
+  if (!screenOff && !inPrompt && !_onUsb) {
+    uint32_t idleMs    = millis() - lastInteractMs;
+    uint32_t threshold = clocking ? CLOCK_OFF_MS_BAT : SCREEN_OFF_MS;
+    if (idleMs > threshold) {
+      hwDisplaySleep(true);
+      screenOff = true;
+    }
   }
 
   // AMOLED burn-in mitigation: every 5 min force a full canvas redraw.
