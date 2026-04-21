@@ -103,3 +103,4 @@ uint8_t hwAxpBtnEvent() {
 }
 
 const HwTouch& hwTouch() { return s_tp; }
+bool hwTouchIrqPending() { return s_tpIrqFlag; }

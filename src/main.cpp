@@ -1363,5 +1363,38 @@ void loop() {
     if (buddyMode) buddyInvalidate();
   }
 
-  delay(screenOff ? 100 : 16);
+  // LTPO-lite: vary loop cadence by what's happening. Animations tick on
+  // wall-clock (buddy.cpp TICK_MS=200) and redraws are gated, so slowing the
+  // loop during ambient SLEEP↔IDLE costs no frames — just fewer MCU wakes.
+  // Fast rate only where latency is felt: input, interactive UI, one-shots,
+  // nap-exit, transfer progress, BLE pairing.
+  uint32_t loopMs;
+  if (screenOff) {
+    loopMs = 200;
+  } else if (napping
+          || hwTouch().down
+          || hwBtnA().isPressed || hwBtnB().isPressed
+          || inPrompt || menuOpen || settingsOpen || resetOpen
+          || (int32_t)(now - oneShotUntil) < 0
+          || xferActive()
+          || blePasskey()) {
+    loopMs = 16;
+  } else {
+    loopMs = 100;
+  }
+  // Slice the idle sleep so a touch-down IRQ (edge-triggered) or a button
+  // press breaks out within ~8ms instead of waiting the full loopMs. Without
+  // this, first-tap latency during idle felt sluggish.
+  if (loopMs <= 16) {
+    delay(loopMs);
+  } else {
+    uint32_t slept = 0;
+    while (slept < loopMs) {
+      uint32_t slice = (loopMs - slept > 8) ? 8 : (loopMs - slept);
+      delay(slice);
+      slept += slice;
+      if (hwTouchIrqPending()) break;
+      if (digitalRead(PIN_KEY1) == LOW) break;
+    }
+  }
 }
