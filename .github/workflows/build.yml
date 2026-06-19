@@ -1,0 +1,67 @@
+name: Build Firmware
+
+on:
+  push:
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      ENVS: |
+        waveshare-esp32s3-touch-amoled-1-8
+        waveshare-esp32s3-touch-amoled-1-75c
+        waveshare-esp32c6-touch-amoled-2-16
+        waveshare-esp32s3-touch-amoled-2-16
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade pip
+          pip install platformio
+
+      - name: Build all boards
+        run: |
+          while IFS= read -r env; do
+            [ -z "$env" ] && continue
+            echo "=== Building $env ==="
+            pio run -e "$env"
+            python tools/generate_flash_project_args.py "$env"
+          done <<< "$ENVS"
+
+      - name: Package firmware ZIPs
+        run: |
+          mkdir -p release
+          while IFS= read -r env; do
+            [ -z "$env" ] && continue
+            echo "=== Packaging $env ==="
+            BUILD_DIR=".pio/build/$env"
+            (cd "$BUILD_DIR" && zip -r "../../../release/${env}-firmware.zip" \
+              firmware.bin \
+              bootloader.bin \
+              partitions.bin \
+              boot_app0.bin \
+              flash_project_args)
+          done <<< "$ENVS"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-release-zips
+          path: release/*.zip
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*.zip

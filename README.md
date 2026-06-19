@@ -71,6 +71,26 @@ pio run -e <env> -t erase && pio run -e <env> -t upload
 
 LittleFS auto-formats on first boot if the partition isn't recognised.
 
+### Flash from Release
+
+Each release provides a per-board ZIP (`<board>-firmware.zip`) with all the
+compiled binaries and a `flash_project_args` file. You can flash it without
+building anything:
+
+1. Download the ZIP matching your board from the GitHub Releases page and extract it.
+2. Put the board into download mode (usually hold BOOT, plug USB, release BOOT).
+3. Run esptool.py with your chip, port and baud, passing the args file with `@`:
+
+   ```bash
+   # ESP32-S3 boards
+   esptool.py -c esp32s3 -p /dev/ttyUSB0 -b 921600 @flash_project_args
+
+   # ESP32-C6 board
+   esptool.py -c esp32c6 -p /dev/ttyUSB0 -b 921600 @flash_project_args
+   ```
+
+   On Windows use `-p COMx` instead of `/dev/ttyUSB0`.
+
 ### Adding another board
 
 1. Add a new header at `src/boards/board_<name>.h` declaring all
