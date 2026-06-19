@@ -9,6 +9,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    env:
+      ENVS: |
+        waveshare-esp32s3-touch-amoled-1-8
+        waveshare-esp32s3-touch-amoled-1-75c
+        waveshare-esp32c6-touch-amoled-2-16
+        waveshare-esp32s3-touch-amoled-2-16
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,42 +30,35 @@ jobs:
           python -m pip install --upgrade pip
           pip install platformio
 
-      - name: Build waveshare-esp32s3-touch-amoled-1-8
-        env:
-          ENV_NAME: waveshare-esp32s3-touch-amoled-1-8
+      - name: Build all boards
         run: |
-          pio run -e "$ENV_NAME"
+          while IFS= read -r env; do
+            [ -z "$env" ] && continue
+            echo "=== Building $env ==="
+            pio run -e "$env"
+            python tools/generate_flash_project_args.py "$env"
+          done <<< "$ENVS"
 
-      - name: Generate flash_project_args from pio upload output
-        env:
-          ENV_NAME: waveshare-esp32s3-touch-amoled-1-8
+      - name: Package firmware ZIPs
         run: |
-          python tools/generate_flash_project_args.py "$ENV_NAME"
+          mkdir -p release
+          while IFS= read -r env; do
+            [ -z "$env" ] && continue
+            echo "=== Packaging $env ==="
+            BUILD_DIR=".pio/build/$env"
+            (cd "$BUILD_DIR" && zip -r "../../../release/${env}-firmware.zip" \
+              firmware.bin \
+              bootloader.bin \
+              partitions.bin \
+              boot_app0.bin \
+              flash_project_args)
+          done <<< "$ENVS"
 
-      - name: Upload build artifact
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: waveshare-esp32s3-touch-amoled-1-8-firmware
-          path: |
-            .pio/build/waveshare-esp32s3-touch-amoled-1-8/firmware.bin
-            .pio/build/waveshare-esp32s3-touch-amoled-1-8/bootloader.bin
-            .pio/build/waveshare-esp32s3-touch-amoled-1-8/partitions.bin
-            .pio/build/waveshare-esp32s3-touch-amoled-1-8/boot_app0.bin
-            .pio/build/waveshare-esp32s3-touch-amoled-1-8/flash_project_args
-
-      - name: Package firmware ZIP
-        env:
-          ENV_NAME: waveshare-esp32s3-touch-amoled-1-8
-        run: |
-          BUILD_DIR=".pio/build/$ENV_NAME"
-          mkdir -p release
-          cd "$BUILD_DIR"
-          zip -r "../../../release/${ENV_NAME}-firmware.zip" \
-            firmware.bin \
-            bootloader.bin \
-            partitions.bin \
-            boot_app0.bin \
-            flash_project_args
+          name: firmware-release-zips
+          path: release/*.zip
 
       - name: Release
         if: startsWith(github.ref, 'refs/tags/')
