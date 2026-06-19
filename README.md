@@ -71,6 +71,24 @@ pio run -e <env> -t erase && pio run -e <env> -t upload
 
 LittleFS auto-formats on first boot if the partition isn't recognised.
 
+### Flash from Release
+
+Each release provides a per-board ZIP (`<board>-firmware.zip`) with all the
+compiled binaries and a `flash_cmd.sh` script. You can flash it without
+building anything:
+
+1. Download the ZIP matching your board from the GitHub Releases page and extract it.
+2. Put the board into download mode (usually hold BOOT, plug USB, release BOOT).
+3. Edit `flash_cmd.sh` if your serial port is not `/dev/ttyUSB0`.
+4. Run the script:
+
+   ```bash
+   bash flash_cmd.sh
+   ```
+
+   Or copy the `esptool.py write_flash ...` command out of `flash_cmd.sh` and
+   run it directly after adjusting the port.
+
 ### Adding another board
 
 1. Add a new header at `src/boards/board_<name>.h` declaring all

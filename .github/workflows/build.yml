@@ -1,0 +1,67 @@
+name: Build Firmware
+
+on:
+  push:
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade pip
+          pip install platformio
+
+      - name: Build waveshare-esp32s3-touch-amoled-1-8
+        env:
+          ENV_NAME: waveshare-esp32s3-touch-amoled-1-8
+        run: |
+          pio run -e "$ENV_NAME"
+
+      - name: Generate flash_cmd.sh from pio upload output
+        env:
+          ENV_NAME: waveshare-esp32s3-touch-amoled-1-8
+        run: |
+          python tools/generate_flash_cmd.py "$ENV_NAME" --port /dev/ttyUSB0
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: waveshare-esp32s3-touch-amoled-1-8-firmware
+          path: |
+            .pio/build/waveshare-esp32s3-touch-amoled-1-8/firmware.bin
+            .pio/build/waveshare-esp32s3-touch-amoled-1-8/bootloader.bin
+            .pio/build/waveshare-esp32s3-touch-amoled-1-8/partitions.bin
+            .pio/build/waveshare-esp32s3-touch-amoled-1-8/boot_app0.bin
+            .pio/build/waveshare-esp32s3-touch-amoled-1-8/flash_cmd.sh
+
+      - name: Package firmware ZIP
+        env:
+          ENV_NAME: waveshare-esp32s3-touch-amoled-1-8
+        run: |
+          BUILD_DIR=".pio/build/$ENV_NAME"
+          mkdir -p release
+          cd "$BUILD_DIR"
+          zip -r "../../../release/${ENV_NAME}-firmware.zip" \
+            firmware.bin \
+            bootloader.bin \
+            partitions.bin \
+            boot_app0.bin \
+            flash_cmd.sh
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*.zip
