@@ -29,11 +29,11 @@ jobs:
         run: |
           pio run -e "$ENV_NAME"
 
-      - name: Generate flash_cmd.sh from pio upload output
+      - name: Generate flash_project_args from pio upload output
         env:
           ENV_NAME: waveshare-esp32s3-touch-amoled-1-8
         run: |
-          python tools/generate_flash_cmd.py "$ENV_NAME" --port /dev/ttyUSB0
+          python tools/generate_flash_project_args.py "$ENV_NAME"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -44,7 +44,7 @@ jobs:
             .pio/build/waveshare-esp32s3-touch-amoled-1-8/bootloader.bin
             .pio/build/waveshare-esp32s3-touch-amoled-1-8/partitions.bin
             .pio/build/waveshare-esp32s3-touch-amoled-1-8/boot_app0.bin
-            .pio/build/waveshare-esp32s3-touch-amoled-1-8/flash_cmd.sh
+            .pio/build/waveshare-esp32s3-touch-amoled-1-8/flash_project_args
 
       - name: Package firmware ZIP
         env:
@@ -58,7 +58,7 @@ jobs:
             bootloader.bin \
             partitions.bin \
             boot_app0.bin \
-            flash_cmd.sh
+            flash_project_args
 
       - name: Release
         if: startsWith(github.ref, 'refs/tags/')
