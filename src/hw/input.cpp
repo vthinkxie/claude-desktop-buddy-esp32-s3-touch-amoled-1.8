@@ -1,15 +1,19 @@
 #include "hw/input.h"
+#include "hw/hw.h"
 #include "hw/pins.h"
 #include "hw/expander.h"
 #include "hw/power.h"
 #include <Arduino.h>
+#include <Wire.h>
 
 #if BOARD_TOUCH_CST92XX
-  #include <Wire.h>
   #include "TouchDrvCSTXXX.hpp"
-#else
-  #include <Arduino_DriveBus_Library.h>
 #endif
+// The FT-family path (non-CST92xx, i.e. the 1.8 board) talks to the touch
+// controller over raw I2C. Both shipping revisions expose the identical
+// FocalTech-style data layout (regs 0x02..0x06); only the I2C address differs
+// (FT3168 @ 0x38 on v1, CST816 @ 0x15 on v2), so a single reader serves both.
+// The live address is chosen at boot from the detected board revision.
 
 static HwBtn   s_a, s_b;
 static HwTouch s_tp;
@@ -18,8 +22,7 @@ static uint8_t s_axpEvt = 0;
 #if BOARD_TOUCH_CST92XX
 static TouchDrvCST92xx s_cst;
 #else
-static std::shared_ptr<Arduino_IIC_DriveBus> s_iicBus;
-static std::unique_ptr<Arduino_IIC>          s_ft3168;
+static uint8_t s_touchAddr = 0x38;   // resolved at init: 0x38 FT3168 (v1) / 0x15 CST816 (v2)
 #endif
 static volatile bool                          s_tpIrqFlag = false;
 
@@ -54,15 +57,35 @@ bool hwInputInit() {
   attachInterrupt(digitalPinToInterrupt(PIN_TP_INT), onTouchIrq, FALLING);
   return true;
 #else
-  s_iicBus = std::make_shared<Arduino_HWIIC>(PIN_I2C_SDA, PIN_I2C_SCL, &Wire);
-  s_ft3168.reset(new Arduino_FT3x68(s_iicBus, FT3168_DEVICE_ADDRESS,
-                                    DRIVEBUS_DEFAULT_VALUE, PIN_TP_INT, onTouchIrq));
-  for (int i = 0; i < 5; i++) {
-    if (s_ft3168->begin()) return true;
-    delay(100);
+  // Address picked from the board revision detected in hwInit().
+  s_touchAddr = hwTouchAddr();
+  bool isCst816 = (s_touchAddr == 0x15);
+
+  if (!isCst816) {
+    // FT3168 power-mode register 0xA5 = 0x00: active scanning.
+    // (CST816 reports by default; no equivalent setup needed.)
+    Wire.beginTransmission(s_touchAddr);
+    Wire.write(0xA5);
+    Wire.write((uint8_t)0x00);
+    Wire.endTransmission();
   }
-  Serial.println("hwInput: FT3168 init failed");
-  return false;
+
+  // Verify the controller answers (chip-id reg: FT3168 0xA0, CST816 0xA7).
+  uint8_t idReg = isCst816 ? 0xA7 : 0xA0;
+  Wire.beginTransmission(s_touchAddr);
+  Wire.write(idReg);
+  bool ok = (Wire.endTransmission(false) == 0) &&
+            (Wire.requestFrom(s_touchAddr, (uint8_t)1) == 1);
+  if (!ok) {
+    Serial.printf("hwInput: touch init failed (addr 0x%02X)\n", s_touchAddr);
+    return false;
+  }
+  Serial.printf("hwInput: %s ID=0x%02X (addr 0x%02X)\n",
+                isCst816 ? "CST816" : "FT3168", Wire.read(), s_touchAddr);
+
+  pinMode(PIN_TP_INT, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(PIN_TP_INT), onTouchIrq, FALLING);
+  return true;
 #endif
 }
 
@@ -181,13 +204,23 @@ static void scanTouch() {
     s_tp.justPressed  = false;
   }
 #else
-  uint8_t fingers = (uint8_t)s_ft3168->IIC_Read_Device_Value(
-      Arduino_IIC_Touch::Value_Information::TOUCH_FINGER_NUMBER);
-  if (fingers > 0) {
-    int rx = (int)s_ft3168->IIC_Read_Device_Value(
-        Arduino_IIC_Touch::Value_Information::TOUCH_COORDINATE_X);
-    int ry = (int)s_ft3168->IIC_Read_Device_Value(
-        Arduino_IIC_Touch::Value_Information::TOUCH_COORDINATE_Y);
+  // FocalTech-style layout shared by FT3168 and CST816:
+  //   reg 0x02 low nibble = finger count; 0x03/0x04 = X hi/lo; 0x05/0x06 = Y hi/lo.
+  uint8_t fingers = 0;
+  int rx = 0, ry = 0;
+  Wire.beginTransmission(s_touchAddr);
+  Wire.write((uint8_t)0x02);
+  if (Wire.endTransmission(false) == 0 &&
+      Wire.requestFrom(s_touchAddr, (uint8_t)5) == 5) {
+    fingers     = Wire.read() & 0x0F;
+    uint8_t xH  = Wire.read();
+    uint8_t xL  = Wire.read();
+    uint8_t yH  = Wire.read();
+    uint8_t yL  = Wire.read();
+    rx = ((int)(xH & 0x0F) << 8) | xL;
+    ry = ((int)(yH & 0x0F) << 8) | yL;
+  }
+  if (fingers > 0 && fingers <= 5) {
     s_tp.justPressed  = !s_tp.down;
     s_tp.justReleased = false;
     int dx = rx - BOARD_DISPLAY_OFFSET_X;

@@ -1,9 +1,14 @@
 #include "hw/display.h"
 #include "hw/pins.h"
 #include <Arduino.h>
+#if BOARD_DISPLAY_RUNTIME_DETECT
+#include "hw/hw.h"   // hwBoardIsCo5300()
+#endif
 
 static Arduino_DataBus*  s_bus    = nullptr;
-#if BOARD_DISPLAY_CO5300
+#if BOARD_DISPLAY_RUNTIME_DETECT
+static Arduino_OLED*     s_gfx    = nullptr;   // SH8601 (v1) or CO5300 (v2), chosen at runtime
+#elif BOARD_DISPLAY_CO5300
 static Arduino_CO5300*   s_gfx    = nullptr;
 #else
 static Arduino_SH8601*   s_gfx    = nullptr;
@@ -51,7 +56,18 @@ bool hwDisplayInit() {
   s_bus = new Arduino_ESP32QSPI(
     PIN_LCD_CS, PIN_LCD_SCLK, PIN_LCD_SDIO0, PIN_LCD_SDIO1,
     PIN_LCD_SDIO2, PIN_LCD_SDIO3);
-#if BOARD_DISPLAY_CO5300
+#if BOARD_DISPLAY_RUNTIME_DETECT
+  if (hwBoardIsCo5300()) {
+    // v2 panel. Reset is via the TCA9554 expander (no LCD_RST GPIO on the 1.8),
+    // already released by hwExpanderResetSequence(), so pass GFX_NOT_DEFINED.
+    // col_offset centres the 368-wide active area in the controller GRAM.
+    s_gfx = new Arduino_CO5300(s_bus, GFX_NOT_DEFINED, BOARD_DISPLAY_ROTATION,
+                               LCD_W_PHYS, LCD_H_PHYS, BOARD_CO5300_COL_OFFSET, 0, 0, 0);
+  } else {
+    // v1 panel.
+    s_gfx = new Arduino_SH8601(s_bus, GFX_NOT_DEFINED, 0, LCD_W_PHYS, LCD_H_PHYS);
+  }
+#elif BOARD_DISPLAY_CO5300
   // CO5300 ctor: (bus, rst, rotation, w, h, col_off1, row_off1, col_off2, row_off2)
   // col_offset1 = 6 on round 466×466 (1.75c), 0 on rounded-square 480×480 (S3-2.16).
   // Pass PIN_LCD_RESET so the driver does its own 200 ms hardware reset —
@@ -183,6 +199,41 @@ void hwDisplayPush() {
     }
   }
   s_gfx->draw16bitRGBBitmap(0, 0, s_frameBuf, LCD_W_PHYS, LCD_H_PHYS);
+#elif BOARD_DISPLAY_RUNTIME_DETECT
+  if (hwBoardIsCo5300()) {
+    // v2 CO5300: per-row draw16bitRGBBitmap calls leave the panel black (QSPI
+    // state issue when chaining many small writes), so stream the whole 2×
+    // upscale in one transaction with CS held — same technique as the 2.16.
+    s_gfx->startWrite();
+    s_gfx->writeAddrWindow(BOARD_DISPLAY_OFFSET_X, BOARD_DISPLAY_OFFSET_Y,
+                           BOARD_HW_W * 2, BOARD_HW_H * 2);
+    for (int y = 0; y < HW_H; y++) {
+      uint16_t* row = src + y * HW_W;
+      for (int x = 0; x < HW_W; x++) {
+        // writeBytes() emits raw bytes; the panel expects MSB-first RGB565.
+        uint16_t c = row[x];
+        uint16_t s = (uint16_t)((c >> 8) | (c << 8));
+        s_lineBuf[x*2]     = s;
+        s_lineBuf[x*2 + 1] = s;
+      }
+      s_gfx->writeBytes((uint8_t*)s_lineBuf, HW_W * 2 * 2);
+      s_gfx->writeBytes((uint8_t*)s_lineBuf, HW_W * 2 * 2);
+    }
+    s_gfx->endWrite();
+  } else {
+    // v1 SH8601: per-row 2× integer upscale (existing 1.8 behavior).
+    for (int y = 0; y < HW_H; y++) {
+      uint16_t* row = src + y * HW_W;
+      for (int x = 0; x < HW_W; x++) {
+        uint16_t c = row[x];
+        s_lineBuf[x*2]     = c;
+        s_lineBuf[x*2 + 1] = c;
+      }
+      int dy = y * 2 + BOARD_DISPLAY_OFFSET_Y;
+      s_gfx->draw16bitRGBBitmap(BOARD_DISPLAY_OFFSET_X, dy,     s_lineBuf, HW_W*2, 1);
+      s_gfx->draw16bitRGBBitmap(BOARD_DISPLAY_OFFSET_X, dy + 1, s_lineBuf, HW_W*2, 1);
+    }
+  }
 #else
 #if BOARD_DISPLAY_PUSH_STREAMED
   // Streamed 2× upscale: one continuous QSPI transaction.

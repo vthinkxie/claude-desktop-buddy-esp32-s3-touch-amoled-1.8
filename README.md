@@ -25,8 +25,8 @@ under `src/boards/`.
 | --- | --- | --- | --- | --- |
 | MCU | ESP32-S3R8 (8 MB OPI PSRAM, 8 MB flash) | same | ESP32-C6FH8 (160 MHz RISC-V single-core, 8 MB flash, **no PSRAM**) | ESP32-S3R8 (8 MB OPI PSRAM, 8 MB flash) |
 | Panel | 1.8" **rectangular** 368×448 AMOLED | 1.75" **round** 466×466 AMOLED | 2.16" **rounded-square** 480×480 AMOLED | 2.16" **rounded-square** 480×480 AMOLED (**rotated 90°**) |
-| Display driver | SH8601 (QSPI) | CO5300 (QSPI) | SH8601 (QSPI) | CO5300 (QSPI) |
-| Touch | FT3168 @ 0x38 | CST92xx @ 0x5A | CST9217 @ 0x5A | CST9217 @ 0x5A |
+| Display driver | SH8601 **or** CO5300 (QSPI) — auto-detected¹ | CO5300 (QSPI) | SH8601 (QSPI) | CO5300 (QSPI) |
+| Touch | FT3168 @ 0x38 **or** CST816 @ 0x15 — auto-detected¹ | CST92xx @ 0x5A | CST9217 @ 0x5A | CST9217 @ 0x5A |
 | GPIO expander | TCA9554 (LCD/TP resets routed through it) | none — resets are direct GPIOs | none — resets are direct GPIOs | none — resets are direct GPIOs |
 | RTC | PCF85063 (I²C) | none — software clock synced from desktop | PCF85063 (I²C) | PCF85063 (I²C) |
 | IMU | QMI8658 | same | same | same |
@@ -38,6 +38,14 @@ under `src/boards/`.
 Internal canvas is **184×224** on all four. The 1.75C rounds the content
 inside its circular bezel; keeping the logical canvas identical means
 UI code, fonts and all buddy rendering are completely board-agnostic.
+
+¹ The **ESP32-S3-Touch-AMOLED-1.8** ships in two hardware revisions that differ
+only in the bonded panel module: **v1** = SH8601 display + FT3168 touch (0x38),
+**v2** = CO5300 display + CST816 touch (0x15). The `waveshare-esp32s3-touch-amoled-1-8`
+build probes the I²C bus at boot and selects the right display and touch drivers
+automatically, so **one binary runs on both revisions** (`hwInit` logs the
+detected revision). The CO5300 path centres the 368-wide image with a column
+offset of 16 and uses a streamed full-frame push (it can't tolerate per-row draws).
 
 The firmware targets ESP32-S3 and ESP32-C6 with Arduino framework 3.x via the
 [pioarduino](https://github.com/pioarduino/platform-espressif32) platform.

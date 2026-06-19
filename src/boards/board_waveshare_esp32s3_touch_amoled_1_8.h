@@ -49,9 +49,16 @@
 #define EXIO_DSI_PWR_EN    2
 #define EXIO_AXP_IRQ       5
 
-// Display: Arduino_SH8601 — canvas is upscaled 2× to physical.
-#define BOARD_DISPLAY_CO5300     0
+// Display: SH8601 (v1) or CO5300 (v2), chosen at runtime — see below.
+// Canvas is upscaled 2× to physical.
+#define BOARD_DISPLAY_CO5300     0   // compile-time default; overridden by runtime detect
 #define BOARD_DISPLAY_LETTERBOX  0
+
+// This board ships in two hardware revisions that differ only in the bonded
+// panel module: v1 = SH8601 + FT3168 (0x38), v2 = CO5300 + CST816 (0x15).
+// hwInit() probes the I2C bus and selects the right display + touch driver at
+// boot, so one binary drives both. display.cpp/input.cpp compile both paths.
+#define BOARD_DISPLAY_RUNTIME_DETECT  1
 
 // Touch: FT3168 @ 0x38 via Arduino_DriveBus (Arduino_FT3x68)
 #define BOARD_TOUCH_CST92XX  0
@@ -81,6 +88,6 @@
 #define BOARD_DISPLAY_SH8601_VENDOR_INIT  0
 #define BOARD_AXP_ENABLE_AUX_LDOS  0
 #define BOARD_DISPLAY_PUSH_STREAMED  0   // per-row 2× upscale works fine on S3 240 MHz
-#define BOARD_CO5300_COL_OFFSET    0   // 1.8 doesn't use CO5300; value irrelevant but defined for build
+#define BOARD_CO5300_COL_OFFSET    16  // v2 CO5300: 368-wide area starts at GRAM col 16 (verified on panel)
 #define BOARD_DISPLAY_ROTATION     0
 #define BOARD_CO5300_MADCTL        0   // 0 = use lib's setRotation MADCTL unchanged
