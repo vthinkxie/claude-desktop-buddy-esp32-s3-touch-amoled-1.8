@@ -7,6 +7,9 @@
 #if BOARD_TOUCH_CST92XX
   #include <Wire.h>
   #include "TouchDrvCSTXXX.hpp"
+#elif BOARD_TOUCH_CST816
+  #include <Wire.h>
+  #include "touch/TouchDrvCST816.h"
 #else
   #include <Arduino_DriveBus_Library.h>
 #endif
@@ -17,6 +20,8 @@ static uint8_t s_axpEvt = 0;
 
 #if BOARD_TOUCH_CST92XX
 static TouchDrvCST92xx s_cst;
+#elif BOARD_TOUCH_CST816
+static TouchDrvCST816  s_cst;
 #else
 static std::shared_ptr<Arduino_IIC_DriveBus> s_iicBus;
 static std::unique_ptr<Arduino_IIC>          s_ft3168;
@@ -50,6 +55,22 @@ bool hwInputInit() {
   Serial.printf("hwInput: CST92xx model=%s\n", s_cst.getModelName());
   s_cst.setMaxCoordinates(LCD_W_PHYS, LCD_H_PHYS);
   s_cst.setMirrorXY(true, true);
+  pinMode(PIN_TP_INT, INPUT);
+  attachInterrupt(digitalPinToInterrupt(PIN_TP_INT), onTouchIrq, FALLING);
+  return true;
+#elif BOARD_TOUCH_CST816
+  // CST816/CST820 @ 0x15 via SensorLib. Reset is handled by
+  // hwExpanderResetSequence(), so pass rstPin=-1 to skip the driver's
+  // internal reset — otherwise it would also re-reset the display.
+  s_cst.setPins(-1, PIN_TP_INT);
+  if (!s_cst.begin(Wire, CST816_SLAVE_ADDRESS, PIN_I2C_SDA, PIN_I2C_SCL)) {
+    Serial.println("hwInput: CST816 init failed");
+    return false;
+  }
+  Serial.printf("hwInput: CST816 model=%s\n", s_cst.getModelName());
+  s_cst.setMaxCoordinates(LCD_W_PHYS, LCD_H_PHYS);
+  s_cst.setMirrorXY(true, true);
+  s_cst.disableAutoSleep();
   pinMode(PIN_TP_INT, INPUT);
   attachInterrupt(digitalPinToInterrupt(PIN_TP_INT), onTouchIrq, FALLING);
   return true;
@@ -142,7 +163,7 @@ static void scanTouch() {
     return;
   }
 
-#if BOARD_TOUCH_CST92XX
+#if BOARD_TOUCH_CST92XX || BOARD_TOUCH_CST816
   int16_t x[2] = {0}, y[2] = {0};
   uint8_t n = s_cst.getPoint(x, y, s_cst.getSupportTouchPoint());
   if (n > 0) {
